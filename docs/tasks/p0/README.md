@@ -6,7 +6,7 @@ Phase plan: [`docs/PHASE_PLAN.md`](../../PHASE_PLAN.md#phase-0-foundations) · B
 
 | ID | Title | Owner | Estimate | Depends on | Status | Commit |
 |---|---|---|---|---|---|---|
-| [P0-REPO-01](P0-REPO-01-monorepo-tooling.md) | Monorepo, TypeScript and lint tooling | backend | M | none | todo | |
+| [P0-REPO-01](P0-REPO-01-monorepo-tooling.md) | Monorepo, TypeScript and lint tooling | backend | M | none | committed | |
 | [P0-SHARED-01](P0-SHARED-01-shared-package.md) | Shared contracts package and OpenAPI generator | backend | M | REPO-01 | todo | |
 | [P0-INFRA-01](P0-INFRA-01-docker-compose.md) | Docker Compose infrastructure | backend | M | REPO-01 | todo | |
 | [P0-API-01](P0-API-01-express-skeleton.md) | Express skeleton, config, logging, errors, health | backend | M | REPO-01, SHARED-01 | todo | |
