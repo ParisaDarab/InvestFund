@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/* next-themes toggles the `dark` class on <html>; make Tailwind's `dark:` variant follow it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Inter is self-hosted by next/font and exposed as --font-inter on <html>. */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Design tokens (colours, radii, typography scale) arrive in P0-WEB-02. Until then the system
+ * colour scheme follows the active theme so the dark default renders without hard-coded colours.
+ */
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

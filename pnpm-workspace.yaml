@@ -2,3 +2,7 @@ packages:
   - apps/*
   - packages/*
   - infra/mocks/*
+allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
+  esbuild: false

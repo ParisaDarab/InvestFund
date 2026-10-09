@@ -15,7 +15,12 @@
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:eol": "node scripts/check-eol.mjs"
+    "check:eol": "node scripts/check-eol.mjs",
+    "check:compose": "node infra/scripts/check-compose.mjs",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "infra:health": "node infra/scripts/compose-health.mjs"
   },
   "devDependencies": {
     "eslint": "9.39.5",

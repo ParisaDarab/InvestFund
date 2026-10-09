@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "siteName": "InvestFund",
+    "description": "InvestFund matches UK startups with the investors most likely to back them."
+  },
+  "home": {
+    "metaTitle": "Fundraising for UK startups",
+    "title": "InvestFund",
+    "description": "The InvestFund website is being built. Check back soon.",
+    "signIn": "Sign in"
+  },
+  "login": {
+    "metaTitle": "Sign in",
+    "title": "Sign in",
+    "description": "Sign-in is coming soon.",
+    "backHome": "Back to the home page"
+  },
+  "app": {
+    "metaTitle": "Dashboard",
+    "title": "Dashboard",
+    "description": "Your workspace will appear here."
+  },
+  "errors": {
+    "notFound": {
+      "metaTitle": "Page not found",
+      "title": "Page not found",
+      "description": "We could not find the page you were looking for.",
+      "homeLink": "Go to the home page"
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "retry": "Try again"
+    }
+  }
+}
