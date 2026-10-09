@@ -80,21 +80,24 @@ services:
       start_period: 5s
     networks: [default, sandbox]
 
-  # ── Mock servers ─────────────────────────────────────────────────────────
-  # Server code, Dockerfiles and fixtures arrive with P0-MOCK-01 / P0-MOCK-02. Until then the
-  # services sit behind the `mocks` profile so that a plain `up -d` does not try to build them.
-  # Those cards remove `mocks` from `profiles` (keeping `sandbox`).
+  # ── Mock servers (P0-MOCK-01 / P0-MOCK-02) ──────────────────────────────
+  # No profile: they start with the base stack and, therefore, with `--profile sandbox` too.
+  # Built locally from infra/mocks/* (never pulled). Test hooks: GET /__calls, POST /__reset,
+  # POST /__control; see infra/mocks/llm/README.md and infra/mocks/google/README.md.
+  # Browser-facing Google URLs (the OAuth consent redirect) use http://localhost:4020;
+  # server-to-server calls inside the sandbox use http://mock-google:4020.
 
   mock-llm:
-    profiles: [mocks, sandbox]
     build:
       context: ..
       dockerfile: infra/mocks/llm/Dockerfile
     image: investfund/mock-llm:dev
     pull_policy: build
     restart: unless-stopped
+    read_only: true
     environment:
       PORT: 4010
+      MOCK_RECORD_CONTENT: ${MOCK_RECORD_CONTENT:-false}
     ports:
       - '127.0.0.1:${MOCK_LLM_PORT:-4010}:4010'
     healthcheck:
@@ -109,15 +112,16 @@ services:
     networks: [default, sandbox]
 
   mock-google:
-    profiles: [mocks, sandbox]
     build:
       context: ..
       dockerfile: infra/mocks/google/Dockerfile
     image: investfund/mock-google:dev
     pull_policy: build
     restart: unless-stopped
+    read_only: true
     environment:
       PORT: 4020
+      MOCK_RECORD_CONTENT: ${MOCK_RECORD_CONTENT:-false}
     ports:
       - '127.0.0.1:${MOCK_GOOGLE_PORT:-4020}:4020'
     healthcheck:
@@ -147,6 +151,8 @@ services:
     environment: &app-environment
       NODE_ENV: production
       API_PORT: 4000
+      # OpenAPI is public in local and sandbox (docs/API.md §5); production keeps it off.
+      OPENAPI_PUBLIC: 'true'
       WEB_URL: http://localhost:3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-investfund}:${POSTGRES_PASSWORD:-investfund}@postgres:5432/${POSTGRES_DB:-investfund}
       REDIS_URL: redis://redis:6379
@@ -161,7 +167,8 @@ services:
       GOOGLE_CLIENT_ID: sandbox-client-id
       GOOGLE_CLIENT_SECRET: sandbox-client-secret
       GOOGLE_REDIRECT_URI: http://localhost:3000/api/v1/auth/google/callback
-      GOOGLE_AUTH_BASE_URL: http://mock-google:4020
+      # Browser-facing: the OAuth consent redirect is followed by the host browser (D-MOCK-01).
+      GOOGLE_AUTH_BASE_URL: http://localhost:4020
       GOOGLE_OAUTH2_BASE_URL: http://mock-google:4020
       GOOGLE_API_BASE_URL: http://mock-google:4020
       # Sandbox-only throwaway values. Real secrets never go in this file.

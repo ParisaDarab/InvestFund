@@ -1,0 +1,6 @@
+{
+  "description": "Default answer for test.echo v1 when no variables fixture matches.",
+  "response": {
+    "content": "test.echo v1 default fixture"
+  }
+}

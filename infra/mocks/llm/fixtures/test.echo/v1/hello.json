@@ -1,0 +1,13 @@
+{
+  "description": "Answer for test.echo v1 with vars { text: 'hello' }. Used by the mock's own tests (AC3).",
+  "vars": {
+    "text": "hello"
+  },
+  "response": {
+    "content": "{\"echo\":\"hello\",\"source\":\"fixture\"}"
+  },
+  "usage": {
+    "promptTokens": 12,
+    "completionTokens": 9
+  }
+}

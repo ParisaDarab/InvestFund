@@ -69,12 +69,12 @@ pnpm check:compose       # static check: ports bound to 127.0.0.1, pinned image 
 | postgres    | `pgvector/pgvector:0.8.7-pg16`  | `localhost:5432` (user, password, db: investfund) |
 | redis       | `redis:7.4.11-alpine`           | `localhost:6379`                                  |
 | mailpit     | `axllent/mailpit:v1.31.4`       | SMTP `localhost:1025`, UI http://localhost:8025   |
-| mock-llm    | built from `infra/mocks/llm`    | `localhost:4010` (profiles `mocks`, `sandbox`)    |
-| mock-google | built from `infra/mocks/google` | `localhost:4020` (profiles `mocks`, `sandbox`)    |
+| mock-llm    | built from `infra/mocks/llm`    | `localhost:4010`                                  |
+| mock-google | built from `infra/mocks/google` | `localhost:4020`                                  |
 
 Profiles:
 
-- `mocks` starts the mock LLM and mock Google servers as well: `docker compose -f infra/docker-compose.yml --profile mocks up -d`. They become part of the default set once their code lands (P0-MOCK-01/02).
+- The mock LLM and mock Google servers are part of the default set (no profile) and are built locally on the first `up`. See `infra/mocks/llm/README.md` and `infra/mocks/google/README.md`.
 - `sandbox` adds the `api`, `worker` and `web` containers. `api` and `worker` run on the internal `investfund-sandbox` network with **no internet egress** and talk only to postgres, redis, mailpit and the mocks. `web` is published on http://localhost:3000. Start it with `docker compose -f infra/docker-compose.yml --profile sandbox up -d --build` and check it with `node infra/scripts/compose-health.mjs --profile sandbox`.
 
 Data lives in the named volumes `postgres-data`, `redis-data`, `mailpit-data` and `api-storage`, so it survives `down` and restarts. `docker compose ... down -v` **deletes all data** and needs explicit approval (see `CLAUDE.md` §5). The Postgres init script `infra/postgres/init/01-extensions.sql` only runs when the data volume is first created.
