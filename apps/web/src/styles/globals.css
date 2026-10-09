@@ -3,30 +3,174 @@
 /* next-themes toggles the `dark` class on <html>; make Tailwind's `dark:` variant follow it. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Inter is self-hosted by next/font and exposed as --font-inter on <html>. */
-@theme inline {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-}
-
 /*
- * Design tokens (colours, radii, typography scale) arrive in P0-WEB-02. Until then the system
- * colour scheme follows the active theme so the dark default renders without hard-coded colours.
+ * Design tokens: the single source of truth is docs/DESIGN_SYSTEM.md (colour tokens table).
+ * Light values live on :root and dark values on .dark (the default theme, set by next-themes).
+ * test/design-tokens.test.ts parses these two blocks, checks them against the design system and
+ * verifies the WCAG contrast pairs, so keep them as plain `--name: value;` declarations.
+ * Components use the semantic Tailwind classes below (bg-background, text-muted-foreground, ...),
+ * never raw colours (enforced by ESLint, see apps/web/eslint.tokens.mjs).
  */
 :root {
   color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #fafafa;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --border: #e4e4e7;
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --ring: #047857;
+  --success: #15803d;
+  --warning: #b45309;
+  --destructive: #b91c1c;
+  --grid-line: rgba(0, 0, 0, 0.05);
 }
 
-:root.dark {
+.dark {
   color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #111111;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1aa;
+  --border: #262626;
+  --primary: #34d399;
+  --primary-foreground: #052e1b;
+  --ring: #34d399;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --destructive: #f87171;
+  --grid-line: rgba(255, 255, 255, 0.05);
 }
 
+/*
+ * Tailwind theme. `--color-*: initial` removes Tailwind's default palette (zinc, emerald, ...),
+ * so only the semantic colours exist as utilities. `inline` makes utilities reference the CSS
+ * variables directly, so switching the theme class re-colours everything without a rebuild.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-grid-line: var(--grid-line);
+
+  /* Inter is self-hosted by next/font and exposed as --font-inter on <html>. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Shape: sm 6px (inputs, buttons), md 10px, lg 14px (cards); rounded-full is built in. */
+  --radius-*: initial;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Depth: glow under the hero product preview. */
+  --shadow-glow: 0 0 120px -20px color-mix(in srgb, var(--primary) 35%, transparent);
+
+  /* Motion: 150-250ms ease-out. Disabled entirely under prefers-reduced-motion (see below). */
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-fade-out: fade-out 150ms ease-out;
+  --animate-pop-in: pop-in 200ms ease-out;
+  --animate-pop-out: pop-out 150ms ease-out;
+  --animate-slide-in-right: slide-in-right 250ms ease-out;
+  --animate-slide-out-right: slide-out-right 200ms ease-out;
+  --animate-slide-in-up: slide-in-up 200ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes slide-out-right {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes slide-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+}
+
+/* Typography scale from docs/DESIGN_SYSTEM.md. */
+@utility type-display {
+  @apply text-5xl leading-[1.05] font-bold tracking-tight md:text-7xl;
+}
+@utility type-h1 {
+  @apply text-3xl font-semibold tracking-tight;
+}
+@utility type-h2 {
+  @apply text-3xl font-bold tracking-tight md:text-5xl;
+}
+@utility type-h3 {
+  @apply text-xl font-semibold;
+}
+@utility type-body {
+  @apply text-base leading-7;
+}
+@utility type-meta {
+  @apply text-muted-foreground text-sm;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
+
+/*
+ * Reduced motion: no animations or transitions at all. Radix primitives (Dialog, Sheet, Toast,
+ * Tooltip) detect `animation-name: none` and mount/unmount immediately.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
     scroll-behavior: auto !important;
   }
 }

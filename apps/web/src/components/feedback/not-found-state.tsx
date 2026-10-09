@@ -2,7 +2,9 @@
 
 import { useTranslations } from 'next-intl';
 
+import { focusRing } from '@/components/ui/focus-ring';
 import { Link } from '@/i18n/navigation';
+import { cn } from '@/lib/cn';
 
 /**
  * Shared localised 404 content for every `not-found.tsx`. A Client Component on purpose: Next.js
@@ -18,9 +20,12 @@ export function NotFoundState() {
       className="mx-auto flex min-h-dvh max-w-xl flex-col items-start justify-center gap-4 p-6"
       data-testid="not-found"
     >
-      <h1 className="text-3xl font-semibold tracking-tight">{t('title')}</h1>
-      <p>{t('description')}</p>
-      <Link href="/" className="font-medium underline underline-offset-4">
+      <h1 className="type-h1">{t('title')}</h1>
+      <p className="type-body text-muted-foreground">{t('description')}</p>
+      <Link
+        href="/"
+        className={cn('rounded-sm font-medium underline underline-offset-4', focusRing)}
+      >
         {t('homeLink')}
       </Link>
     </main>

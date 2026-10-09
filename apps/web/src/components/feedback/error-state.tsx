@@ -3,6 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 
+import { Button } from '@/components/ui/button';
+
 export interface ErrorStateProps {
   error: Error & { digest?: string };
   retry: () => void;
@@ -22,16 +24,11 @@ export function ErrorState({ error, retry }: ErrorStateProps) {
       className="mx-auto flex min-h-dvh max-w-xl flex-col items-start justify-center gap-4 p-6"
       data-testid="error-state"
     >
-      <h1 className="text-3xl font-semibold tracking-tight">{t('title')}</h1>
-      <p>{t('description')}</p>
-      <button
-        type="button"
-        onClick={retry}
-        className="rounded-md border px-4 py-2 font-medium focus-visible:ring-2 focus-visible:outline-none"
-        data-testid="error-retry"
-      >
+      <h1 className="type-h1">{t('title')}</h1>
+      <p className="type-body text-muted-foreground">{t('description')}</p>
+      <Button variant="outline" onClick={retry} data-testid="error-retry">
         {t('retry')}
-      </button>
+      </Button>
     </main>
   );
 }

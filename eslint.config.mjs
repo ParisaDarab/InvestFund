@@ -7,6 +7,7 @@ import {
   hardCodedTextIgnores,
   hardCodedTextSelectors,
 } from './apps/web/eslint.i18n.mjs';
+import { rawColourFiles, rawColourIgnores, rawColourSelectors } from './apps/web/eslint.tokens.mjs';
 
 const bannedPrismaRawUnsafe =
   'Unsafe raw SQL is banned. Use Prisma query builders or the tagged-template $queryRaw / $executeRaw (parameterised).';
@@ -75,6 +76,21 @@ export default tseslint.config(
     ignores: hardCodedTextIgnores,
     rules: {
       'no-restricted-syntax': ['error', ...prismaRawUnsafeSelectors, ...hardCodedTextSelectors],
+    },
+  },
+  {
+    // apps/web components and pages: semantic design tokens only, no raw hex or Tailwind palette
+    // colours (see apps/web/eslint.tokens.mjs). Repeats the selectors above because flat config
+    // replaces rule options; the i18n selectors only ever match JSX, so .ts files are unaffected.
+    files: rawColourFiles,
+    ignores: rawColourIgnores,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...prismaRawUnsafeSelectors,
+        ...hardCodedTextSelectors,
+        ...rawColourSelectors,
+      ],
     },
   },
   {
