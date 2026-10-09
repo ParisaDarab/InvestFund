@@ -1,0 +1,14 @@
+# Negative fixture for infra/scripts/check-compose.mjs: every service below breaks a rule.
+name: check-compose-fixture
+services:
+  untagged:
+    image: redis
+  latest:
+    image: axllent/mailpit:latest
+  all-interfaces:
+    image: redis:7.4.11-alpine
+    ports:
+      - '6379:6379'
+networks:
+  sandbox:
+    internal: false

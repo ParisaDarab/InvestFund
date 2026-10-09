@@ -1,0 +1,26 @@
+# Build context for infra/docker-compose.yml is the repository root. Keep it small and free of
+# secrets: nothing below is ever sent to the Docker daemon.
+**/node_modules
+**/dist
+**/build
+**/.next
+**/out
+**/coverage
+**/playwright-report
+**/test-results
+**/storage
+**/uploads
+**/*.log
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+docs

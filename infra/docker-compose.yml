@@ -1,0 +1,247 @@
+# InvestFund local and sandbox infrastructure.
+#
+#   docker compose -f infra/docker-compose.yml up -d                     backing services
+#   docker compose -f infra/docker-compose.yml --profile sandbox up -d   + api, worker, web (no egress)
+#   docker compose -f infra/docker-compose.yml logs -f <service>
+#   docker compose -f infra/docker-compose.yml down                      keeps the named volumes
+#
+# Rules (checked by infra/scripts/check-compose.mjs): every published port is bound to 127.0.0.1
+# and every image is pinned to an explicit tag (never `latest`).
+#
+# Credentials below are local-development defaults, not secrets. Override them with environment
+# variables or an infra/.env file (gitignored) if you need to.
+
+name: investfund
+
+x-node-healthcheck: &node-healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 10s
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-investfund}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-investfund}
+      POSTGRES_DB: ${POSTGRES_DB:-investfund}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once, when the data volume is first initialised.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Over TCP, so the check stays red while the init scripts run on the Unix socket.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [default, sandbox]
+
+  redis:
+    image: redis:7.4.11-alpine
+    restart: unless-stopped
+    # AOF persistence, and no eviction: BullMQ requires keys never to be evicted.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    networks: [default, sandbox]
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 'true'
+      MP_SMTP_AUTH_ALLOW_INSECURE: 'true'
+    ports:
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025'
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    networks: [default, sandbox]
+
+  # ── Mock servers ─────────────────────────────────────────────────────────
+  # Server code, Dockerfiles and fixtures arrive with P0-MOCK-01 / P0-MOCK-02. Until then the
+  # services sit behind the `mocks` profile so that a plain `up -d` does not try to build them.
+  # Those cards remove `mocks` from `profiles` (keeping `sandbox`).
+
+  mock-llm:
+    profiles: [mocks, sandbox]
+    build:
+      context: ..
+      dockerfile: infra/mocks/llm/Dockerfile
+    image: investfund/mock-llm:dev
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      PORT: 4010
+    ports:
+      - '127.0.0.1:${MOCK_LLM_PORT:-4010}:4010'
+    healthcheck:
+      <<: *node-healthcheck
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4010/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+    networks: [default, sandbox]
+
+  mock-google:
+    profiles: [mocks, sandbox]
+    build:
+      context: ..
+      dockerfile: infra/mocks/google/Dockerfile
+    image: investfund/mock-google:dev
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      PORT: 4020
+    ports:
+      - '127.0.0.1:${MOCK_GOOGLE_PORT:-4020}:4020'
+    healthcheck:
+      <<: *node-healthcheck
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4020/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+    networks: [default, sandbox]
+
+  # ── Sandbox application containers (profile `sandbox`) ───────────────────
+  # `api` and `worker` are attached ONLY to the internal `sandbox` network: no internet egress,
+  # no published ports. They reach postgres, redis, mailpit and the mocks by service name.
+  # Dockerfiles: apps/api/Dockerfile (P0-API-01) and apps/web/Dockerfile (P0-WEB-01).
+
+  api:
+    profiles: [sandbox]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: investfund/api:sandbox
+    pull_policy: build
+    restart: unless-stopped
+    environment: &app-environment
+      NODE_ENV: production
+      API_PORT: 4000
+      WEB_URL: http://localhost:3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-investfund}:${POSTGRES_PASSWORD:-investfund}@postgres:5432/${POSTGRES_DB:-investfund}
+      REDIS_URL: redis://redis:6379
+      STORAGE_DIR: /var/lib/investfund/storage
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: InvestFund <no-reply@investfund.local>
+      LLM_BASE_URL: http://mock-llm:4010/v1
+      LLM_API_KEY: sandbox-mock-key
+      LLM_MODEL: mock-chat
+      LLM_EMBEDDING_MODEL: mock-embedding
+      GOOGLE_CLIENT_ID: sandbox-client-id
+      GOOGLE_CLIENT_SECRET: sandbox-client-secret
+      GOOGLE_REDIRECT_URI: http://localhost:3000/api/v1/auth/google/callback
+      GOOGLE_AUTH_BASE_URL: http://mock-google:4020
+      GOOGLE_OAUTH2_BASE_URL: http://mock-google:4020
+      GOOGLE_API_BASE_URL: http://mock-google:4020
+      # Sandbox-only throwaway values. Real secrets never go in this file.
+      JWT_ACCESS_SECRET: ${SANDBOX_JWT_ACCESS_SECRET:-sandbox-only-access-secret-not-for-production}
+      JWT_REFRESH_SECRET: ${SANDBOX_JWT_REFRESH_SECRET:-sandbox-only-refresh-secret-not-for-production}
+      ENCRYPTION_KEY: ${SANDBOX_ENCRYPTION_KEY:-c2FuZGJveC1vbmx5LWtleS1ub3QtZm9yLXByb2QtMDA=}
+      ENCRYPTION_KEY_VERSION: 1
+    volumes:
+      - api-storage:/var/lib/investfund/storage
+    depends_on: &app-depends-on
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+      mock-llm: { condition: service_healthy }
+      mock-google: { condition: service_healthy }
+    healthcheck:
+      <<: *node-healthcheck
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health/ready').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+    networks: [sandbox]
+
+  worker:
+    profiles: [sandbox]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: investfund/api:sandbox
+    pull_policy: build
+    restart: unless-stopped
+    command: ['node', 'dist/worker.js']
+    environment: *app-environment
+    volumes:
+      - api-storage:/var/lib/investfund/storage
+    depends_on:
+      <<: *app-depends-on
+      api: { condition: service_started }
+    networks: [sandbox]
+
+  web:
+    profiles: [sandbox]
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    image: investfund/web:sandbox
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      <<: *node-healthcheck
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.status<500?0:1),()=>process.exit(1))",
+        ]
+    # `web` must be reachable from the host browser, which needs a non-internal network for the
+    # published port. It talks to the API over `sandbox`.
+    networks: [default, sandbox]
+
+networks:
+  default:
+    name: investfund-default
+  sandbox:
+    name: investfund-sandbox
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  mailpit-data:
+  api-storage:
