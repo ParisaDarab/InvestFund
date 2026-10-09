@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import { HealthLive, HealthReport, ProblemDetails, problemTypeUri } from '@investfund/shared';
 
+import { createApp } from '../app.js';
 import { NotFoundError } from '../core/errors/domain-errors.js';
+import { ReadinessRegistry, type ReadinessCheck } from '../core/health/health-registry.js';
 
 import { buildTestApp } from './support.js';
 
@@ -117,10 +119,20 @@ describe('unknown paths (AC7)', () => {
   );
 });
 
+/**
+ * An app whose readiness registry holds only `checks` (fakes). The container's real `db` check is
+ * covered by core/db/__tests__/db-readiness.int.test.ts.
+ */
+function appWithChecks(...checks: ReadinessCheck[]) {
+  const { deps, logs } = buildTestApp();
+  const readiness = new ReadinessRegistry(deps.logger);
+  for (const check of checks) readiness.register(check);
+  return { app: createApp({ ...deps, readiness }), logs };
+}
+
 describe('GET /health/ready (AC9)', () => {
   it('returns 200 when every check passes', async () => {
-    const { app, deps } = buildTestApp();
-    deps.readiness.register({ name: 'db', run: () => Promise.resolve() });
+    const { app } = appWithChecks({ name: 'db', run: () => Promise.resolve() });
     const res = await request(app).get('/health/ready');
     expect(res.status).toBe(200);
     expect(HealthReport.parse(res.body)).toEqual({
@@ -130,11 +142,13 @@ describe('GET /health/ready (AC9)', () => {
   });
 
   it('returns 503 naming the failing check without internal details', async () => {
-    const { app, deps, logs } = buildTestApp();
-    deps.readiness.register({ name: 'db', run: () => Promise.resolve() }).register({
-      name: 'redis',
-      run: () => Promise.reject(new Error('connect ECONNREFUSED 10.1.2.3:6379 password=hunter2')),
-    });
+    const { app, logs } = appWithChecks(
+      { name: 'db', run: () => Promise.resolve() },
+      {
+        name: 'redis',
+        run: () => Promise.reject(new Error('connect ECONNREFUSED 10.1.2.3:6379 password=hunter2')),
+      },
+    );
 
     const res = await request(app).get('/health/ready');
 

@@ -3,6 +3,6 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "*.ts"],
+  "include": ["src/**/*.ts", "*.ts", "../../infra/seed/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

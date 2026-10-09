@@ -9,14 +9,14 @@ Phase plan: [`docs/PHASE_PLAN.md`](../../PHASE_PLAN.md#r0-foundations-lean-finis
 | [P0-REPO-01](P0-REPO-01-monorepo-tooling.md) | Monorepo, TypeScript and lint tooling | backend | M | none | committed | |
 | [P0-SHARED-01](P0-SHARED-01-shared-package.md) | Shared contracts package and OpenAPI generator | backend | M | REPO-01 | committed | |
 | [P0-INFRA-01](P0-INFRA-01-docker-compose.md) | Docker Compose infrastructure | backend | M | REPO-01 | committed | |
-| [P0-API-01](P0-API-01-express-skeleton.md) | Express skeleton, config, logging, errors, health | backend | M | REPO-01, SHARED-01 | in-review | |
+| [P0-API-01](P0-API-01-express-skeleton.md) | Express skeleton, config, logging, errors, health | backend | M | REPO-01, SHARED-01 | committed | 03502b5 |
 | [P0-API-02](P0-API-02-core-security.md) | Core security, rate limits, crypto, storage, auth guards | backend | M | API-01 | todo | |
 | [P0-API-03](P0-API-03-worker-queues.md) | Worker entry point and BullMQ foundation | backend | S | API-01, INFRA-01 | deferred (R2) | |
-| [P0-DB-01](P0-DB-01-prisma-init.md) | Prisma initialisation and DB access foundation | backend | S | API-01, INFRA-01 | todo | |
-| [P0-MOCK-01](P0-MOCK-01-mock-llm.md) | Mock LLM server skeleton | tester | M | REPO-01, INFRA-01 | in-review (parked after commit until R2) | |
-| [P0-MOCK-02](P0-MOCK-02-mock-google.md) | Mock Google server skeleton | tester | M | REPO-01, INFRA-01 | in-review (parked after commit until R5) | |
+| [P0-DB-01](P0-DB-01-prisma-init.md) | Prisma initialisation and DB access foundation | backend | S | API-01, INFRA-01 | in-review | |
+| [P0-MOCK-01](P0-MOCK-01-mock-llm.md) | Mock LLM server skeleton | tester | M | REPO-01, INFRA-01 | committed (parked until R2) | 48aa157 |
+| [P0-MOCK-02](P0-MOCK-02-mock-google.md) | Mock Google server skeleton | tester | M | REPO-01, INFRA-01 | committed (parked until R5) | 48aa157 |
 | [P0-WEB-01](P0-WEB-01-nextjs-skeleton.md) | Next.js skeleton with i18n, theming, providers | frontend | M | REPO-01 | committed | |
-| [P0-WEB-02](P0-WEB-02-design-tokens.md) | Design tokens, theme and base UI primitives | frontend | M | WEB-01 | in-review | |
+| [P0-WEB-02](P0-WEB-02-design-tokens.md) | Design tokens, theme and base UI primitives | frontend | M | WEB-01 | committed | 06941de |
 | [P0-WEB-03](P0-WEB-03-marketing-shell.md) | Marketing layout shell | frontend | M | WEB-02 | deferred (R1 S1.10) | |
 | [P0-WEB-04](P0-WEB-04-api-client.md) | Typed API client and MSW setup | frontend | S | WEB-01, SHARED-01, API-01 | todo | |
 | [P0-TEST-01](P0-TEST-01-test-tooling.md) | Test tooling, coverage thresholds, test utilities | tester | M | REPO-01, API-01, DB-01, WEB-01 | partial (Playwright → R1 S1.11) | |

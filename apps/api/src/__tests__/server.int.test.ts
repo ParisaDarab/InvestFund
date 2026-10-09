@@ -64,6 +64,8 @@ describe('server entry point', () => {
         API_PORT: '0',
         METRICS_ENABLED: 'false',
         JWT_ACCESS_SECRET: 'process-test-secret',
+        // Prisma connects lazily, so the server starts without reaching the database.
+        DATABASE_URL: 'postgresql://investfund:investfund@127.0.0.1:1/investfund',
       });
       const deadline = Date.now() + 20_000;
       while (!output().includes('api listening')) {

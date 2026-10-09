@@ -3,7 +3,7 @@
  *
  * `loadConfig()` fails fast with a `ConfigError` that lists the offending variable NAMES and
  * the kind of problem. It never echoes values, so secrets cannot leak into logs or terminals.
- * Later cards extend `EnvSchema` with their own variables (database, Redis, crypto, storage...).
+ * Later cards extend `EnvSchema` with their own variables (Redis, crypto, storage...).
  */
 import { z } from 'zod';
 
@@ -20,6 +20,9 @@ const booleanFlag = z
 const port = z.coerce.number().int().min(0).max(65_535);
 
 const host = z.string().trim().min(1);
+
+/** A PostgreSQL connection URL (`postgresql://` or `postgres://`). */
+const postgresUrl = z.url({ protocol: /^postgres(ql)?$/ });
 
 /** Secret placeholders from `.env.example` that must never reach production. */
 const PLACEHOLDER_SECRETS = new Set(['change-me', 'changeme']);
@@ -42,6 +45,8 @@ export const EnvSchema = z
     OPENAPI_PUBLIC: booleanFlag.optional(),
     /** Grace period for in-flight requests on SIGTERM/SIGINT before connections are cut. */
     SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(8000),
+    /** PostgreSQL connection URL used by Prisma (`core/db`). Required at boot. Contains a secret. */
+    DATABASE_URL: postgresUrl,
     /** Signs access tokens (verified by `core/auth`, P0-API-02). Required at boot. */
     JWT_ACCESS_SECRET: z.string().min(1),
   })
@@ -66,6 +71,7 @@ export interface AppConfig {
   readonly metrics: { readonly enabled: boolean; readonly host: string; readonly port: number };
   readonly openApi: { readonly public: boolean };
   readonly shutdown: { readonly timeoutMs: number };
+  readonly database: { readonly url: string };
   readonly auth: { readonly jwtAccessSecret: string };
 }
 
@@ -126,6 +132,7 @@ export function loadConfig(source: RawEnv = process.env): AppConfig {
     metrics: { enabled: env.METRICS_ENABLED, host: env.METRICS_HOST, port: env.METRICS_PORT },
     openApi: { public: env.OPENAPI_PUBLIC ?? !isProduction },
     shutdown: { timeoutMs: env.SHUTDOWN_TIMEOUT_MS },
+    database: { url: env.DATABASE_URL },
     auth: { jwtAccessSecret: env.JWT_ACCESS_SECRET },
   };
 }

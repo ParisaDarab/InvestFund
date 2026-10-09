@@ -12,6 +12,10 @@ Contracts (Zod schemas, problem types, the OpenAPI generator) come from `@invest
 | Start the build                            | `pnpm --filter @investfund/api start`                |
 | Typecheck                                  | `pnpm --filter @investfund/api typecheck`            |
 | Tests                                      | `pnpm vitest run --project api` (from the repo root) |
+| Generate Prisma Client (also on install)   | `pnpm db:generate`                                   |
+| Create/apply migrations (dev)              | `pnpm db:migrate` (`prisma migrate dev`)             |
+| Prisma Studio                              | `pnpm db:studio`                                     |
+| Seed (`infra/seed/seed.ts`)                | `pnpm seed`                                          |
 
 ## Layout
 
@@ -22,14 +26,33 @@ src/
   core/
     config/         Zod-validated env (the only place that reads process.env)
     container.ts    composition root: builds infrastructure and modules, wires dependencies
+    db/             Prisma client factory (debug query log without params), Unit of Work, db readiness check
     errors/         DomainError classes, problem+json builder, central error handler
     health/         readiness check registry, /health/live and /health/ready
+    ids/            newId(): UUID v7, monotonic within the process (decision D5)
     http/           asyncHandler, 404 fallback, server start/graceful shutdown
     logger/         pino logger (redaction), pino-http request logging and request IDs
     metrics/        prom-client registry, HTTP duration histogram, internal metrics app
     openapi/        GET /api/v1/openapi.json
   modules/<domain>/ domain modules (from Phase 1)
+prisma/             schema.prisma and migrations (first: init_extensions → vector, citext)
+prisma.config.ts    Prisma CLI config (loads the root .env when present)
+generated/prisma/   Prisma Client from `prisma generate` (gitignored)
 ```
+
+## Database
+
+Prisma 6 (`prisma-client-js`, classic engine) on PostgreSQL 16 with `vector` and `citext`.
+The container creates one `PrismaClient` per process (lazy connect), registers the `db` readiness
+check and disconnects it on shutdown. Repositories receive the client or a transaction client from
+`UnitOfWork.run`. IDs come from `newId()` in `core/ids`. Raw SQL only through the tagged templates
+`$queryRaw` / `$executeRaw`; `$queryRawUnsafe` and `$executeRawUnsafe` fail lint.
+
+Integration tests get an isolated database from `@investfund/test-utils/db`
+(`createTestDatabase({ prismaProjectDir })`): a uniquely named database on the server named by
+`TEST_DATABASE_URL` (else `DATABASE_URL`, else the local compose database), migrated with
+`prisma migrate deploy` and dropped by `drop()`. The role needs `CREATEDB` and permission to create
+the extensions.
 
 ## Domain module convention
 
@@ -71,7 +94,7 @@ Never log document text, tokens or personal data.
 | Endpoint                   | Where                                                                              | Notes                                                                                                                                                             |
 | -------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /health/live`         | public app                                                                         | `200 { "status": "ok" }`                                                                                                                                          |
-| `GET /health/ready`        | public app                                                                         | `200`/`503` `HealthReport`; checks are registered on `container.readiness` by later cards (db, redis, storage) and time out after 2 s                             |
+| `GET /health/ready`        | public app                                                                         | `200`/`503` `HealthReport`; the container registers `db` (`SELECT 1`), later cards add their own; each check times out after 2 s                                  |
 | `GET /metrics`             | **internal listener only** (`METRICS_HOST:METRICS_PORT`, default `127.0.0.1:9464`) | prom-client defaults + `http_request_duration_seconds{method,route,status_code}`. Never publish or route this port publicly; disable with `METRICS_ENABLED=false` |
 | `GET /api/v1/openapi.json` | public app                                                                         | served when `OPENAPI_PUBLIC` is true (default: on outside production)                                                                                             |
 
@@ -85,6 +108,7 @@ Never log document text, tokens or personal data.
 | `METRICS_ENABLED` / `METRICS_HOST` / `METRICS_PORT` | `true` / `127.0.0.1` / `9464` | internal metrics listener                                    |
 | `OPENAPI_PUBLIC`                                    | `true` outside production     | admin-only in production comes with the auth guard           |
 | `SHUTDOWN_TIMEOUT_MS`                               | `8000`                        | drain time for in-flight requests before connections are cut |
+| `DATABASE_URL`                                      | required                      | `postgresql://` or `postgres://` URL (contains a secret)     |
 | `JWT_ACCESS_SECRET`                                 | required                      | at least 32 characters and not a placeholder in production   |
 
 Startup fails fast with exit code 1 and lists the invalid variable **names** (never values).

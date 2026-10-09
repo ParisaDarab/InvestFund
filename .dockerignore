@@ -12,6 +12,8 @@
 **/uploads
 **/*.log
 **/*.tsbuildinfo
+# Regenerated inside the image by `prisma generate`
+apps/api/generated
 .git
 .github
 .claude

@@ -1,6 +1,6 @@
 /**
- * Readiness check registry. Later cards register `db` (P0-DB-01), `redis` and `storage`
- * (P0-API-02). Checks run in parallel with a per-check timeout; a check passes when its
+ * Readiness check registry. The container registers `db` (P0-DB-01); later cards add their own
+ * dependencies (for example `storage`, P0-API-02). Checks run in parallel with a per-check timeout; a check passes when its
  * promise resolves and fails when it rejects or times out. Failure reasons go to the log only:
  * the public `HealthReport` names the check and its status, nothing else.
  */

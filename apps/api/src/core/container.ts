@@ -2,12 +2,15 @@
  * Composition root. The only place that instantiates concrete implementations and wires them
  * together; everything else receives its dependencies through constructors or `createApp`.
  *
- * Later cards add their infrastructure here (Prisma client, Redis, storage, queues), register
- * readiness checks and close hooks, and build each module (repository → service → controller →
- * routes) for `createApp` to mount under `/api/v1`.
+ * Infrastructure built here: the Prisma client (one per process, `db` readiness check, disconnected
+ * by a close hook on shutdown). Later cards add Redis, storage and queues the same way, and build
+ * each module (repository → service → controller → routes) for `createApp` to mount under `/api/v1`.
  */
 import { buildOpenApiDocument, type OpenApiDocument } from '@investfund/shared/openapi';
 
+import { createDbReadinessCheck } from './db/db-readiness.js';
+import { createPrismaClient, type PrismaClient } from './db/prisma.js';
+import { createUnitOfWork, type UnitOfWork } from './db/unit-of-work.js';
 import { ReadinessRegistry } from './health/health-registry.js';
 import { createLogger, type Logger } from './logger/logger.js';
 import { createHttpMetrics, type HttpMetrics } from './metrics/metrics.js';
@@ -22,6 +25,9 @@ export interface Container {
   readonly logger: Logger;
   readonly readiness: ReadinessRegistry;
   readonly metrics: HttpMetrics | undefined;
+  /** The process-wide Prisma client. Repositories receive it (or a transaction client). */
+  readonly prisma: PrismaClient;
+  readonly unitOfWork: UnitOfWork;
   /** Run on shutdown after the HTTP servers have drained, in registration order. */
   readonly closeHooks: CloseHook[];
   /** The dependencies `createApp` needs. */
@@ -47,12 +53,18 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
   const metrics = config.metrics.enabled ? createHttpMetrics() : undefined;
   const openApiDocument = config.openApi.public ? memoiseOpenApi() : undefined;
 
+  const prisma = createPrismaClient({ url: config.database.url, logger });
+  readiness.register(createDbReadinessCheck(prisma));
+  const closeHooks: CloseHook[] = [() => prisma.$disconnect()];
+
   return {
     config,
     logger,
     readiness,
     metrics,
-    closeHooks: [],
+    prisma,
+    unitOfWork: createUnitOfWork(prisma),
+    closeHooks,
     appDeps: () => ({ logger, readiness, metrics, openApiDocument }),
   };
 }

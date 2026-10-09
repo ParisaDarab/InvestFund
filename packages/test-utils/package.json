@@ -2,5 +2,20 @@
   "name": "@investfund/test-utils",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "description": "Test helpers shared by the workspace packages (isolated test databases...). Test code only.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./db": {
+      "types": "./src/db.ts",
+      "default": "./src/db.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
 }

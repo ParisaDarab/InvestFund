@@ -6,12 +6,18 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
-    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+    "build": "node scripts/clean-dist.mjs && prisma generate && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "seed": "tsx --env-file-if-exists=../../.env ../../infra/seed/seed.ts"
   },
   "dependencies": {
     "@investfund/shared": "workspace:*",
+    "@prisma/client": "6.19.3",
     "express": "5.2.1",
     "pino": "10.3.1",
     "pino-http": "11.0.0",
@@ -19,9 +25,11 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@investfund/test-utils": "workspace:*",
     "@types/express": "5.0.6",
     "@types/node": "22.20.5",
     "@types/supertest": "7.2.1",
+    "prisma": "6.19.3",
     "supertest": "7.2.2",
     "tsx": "4.23.15",
     "typescript": "6.0.3"
