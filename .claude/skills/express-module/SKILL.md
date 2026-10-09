@@ -9,7 +9,7 @@ description: Backend procedure for implementing a new domain module or endpoint 
 
 1. Confirm that the contract exists in `docs/API.md` and that the schemas exist in `packages/shared/src/api/<domain>.ts`. If they don't, stop and ask the supervisor.
 2. Create `apps/api/src/modules/<domain>/` containing `routes`, `controller`, `service`, `repository`, `types` and `__tests__/`.
-3. Register the module in the composition root (`core/container.ts`) and mount the router in `app.ts` under `/api/v1`.
+3. Build the module's router in the composition root (`core/container.ts`) and add it to the `modules` list as `ApiModule { path, router }`. `app.ts` mounts every module under `/api/v1`; do not edit `app.ts` per module.
 4. Write the tests first or alongside the code: service unit tests and a route integration test.
 
 ## Skeleton

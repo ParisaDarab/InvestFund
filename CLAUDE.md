@@ -43,30 +43,30 @@ The **main session is the orchestrator.** It talks to the human, invokes the sup
 
 ## 4. Development workflow
 
+Work is planned as **releases** made of numbered **sessions** (`docs/PHASE_PLAN.md`). **One session must finish before the Claude usage limit**, so a session covers 1–2 small task cards. Never run several heavy agents in parallel.
+
 ```
-Human requirement
-   │
-   ▼
-Supervisor ── produces ──► Phase plan / task cards (docs/tasks/)  ──► GATE A: human approves plan
-   │
-   ▼
-Backend / Frontend implement task cards (in parallel when contracts are fixed)
-   │
-   ▼
-Tester writes & runs tests, sandbox simulation ──► test report
-   │
-   ▼
-Supervisor reviews diff against standards & acceptance criteria
-   │
-   ▼
-GATE B: human approves commit  ──► commit on feature branch
-   │
-   ▼
-GATE C: human approves push / PR ──► PR into main
-   │
-   ▼
-GATE D: human signs off phase  ──► next phase
+Release start:  Supervisor plans the release and writes its task cards ──► GATE A: human approves plan
+
+Each session (lean):
+   Orchestrator picks the session's card(s)
+      │
+      ▼
+   ONE specialist agent (backend or frontend; tester for test cards) implements the card AND its tests
+      │
+      ▼
+   Orchestrator runs lint, typecheck, tests and build, and checks the acceptance criteria
+      │
+      ▼
+   GATE B: human approves commit ──► commit on the release branch
+
+Release end:    Tester runs E2E/non-functional tests and writes the release test report
+                Supervisor reviews the release diff against the standards
+                GATE C: human approves push / PR ──► PR into main
+                GATE D: human signs off the release ──► next release
 ```
+
+If a session is about to run out of budget, stop at a green, committable point and record what remains in the task card. Never leave half-edited files unreported.
 
 Detailed procedure: `docs/WORKFLOW.md`, skill `human-approval-gate`.
 
