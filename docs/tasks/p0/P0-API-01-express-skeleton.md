@@ -34,3 +34,11 @@ A running, observable Express API with the layering and plumbing every module re
 ## Notes / risks
 - Coverage ≥ 80% for `apps/api/src/core/**` added here.
 - Do not expose `/metrics` publicly; document the internal port.
+
+## Review decisions (supervisor, 2026-10-09)
+- **Q1, 500 problem type:** unknown errors use the standard slug `internal-error` (500, title `Internal server error`) added to `docs/API.md` §2. Add it to `PROBLEM_TYPE_STATUS` (`packages/shared/src/constants/problem-types.ts`) and `PROBLEM_TITLES`, and make `buildProblem` take a `ProblemTypeSlug` only (drop the `null` / `about:blank` branch and the `INTERNAL_PROBLEM_TYPE` / `INTERNAL_PROBLEM_TITLE` constants). Keep `INTERNAL_PROBLEM_DETAIL`. Do not add an `InternalError` domain class. The shared docs-sync test fails until this lands.
+- **Q2, prom-client:** keep `prom-client@15.1.3` for P0 (pinned, on the approved list, isolated in `core/metrics` behind `HttpMetrics`). Its npm deprecation is recorded for the human; a switch to `@prometheus-io/client` (currently 0.x) needs its own dependency approval and is not part of this card.
+- **Q3, openapi.json:** confirmed as implemented for this card (fails closed in production). The production admin guard and the start-up warning are added by P0-API-02 (see its AC10–AC11 and `docs/API.md` §5).
+- **Q4, config scope:** confirmed. This card validates `JWT_ACCESS_SECRET` only. Each later card adds the variables it consumes to `EnvSchema` (P0-API-02, P0-DB-01, P0-API-03 list theirs in Notes).
+- **Q5, module mounting:** confirmed. Modules are built in `core/container.ts` and passed to `createApp` as `ApiModule { path, router }`; `app.ts` mounts them under `/api/v1` and is not edited per module (skill `express-module` and `docs/ARCHITECTURE.md` updated).
+- **Metrics route label (review finding 1):** when a module route throws, Express has already restored `req.baseUrl` by the time `finish` fires, so the label loses its mount path (`route="/:itemId"` instead of `/api/v1/items/:itemId`). Capture the mount path while the request is inside the mounted router (for example a tiny middleware placed before each module router and before the health router that stores `req.baseUrl` in `res.locals`) and build the label from it. Add an integration test for a throwing route.

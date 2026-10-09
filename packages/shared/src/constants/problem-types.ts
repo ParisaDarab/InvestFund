@@ -29,6 +29,7 @@ export const PROBLEM_TYPE_STATUS = {
   'account-locked': 423,
   'integration-required': 424,
   'rate-limited': 429,
+  'internal-error': 500,
   'dependency-unavailable': 503,
 } as const satisfies Record<string, number>;
 
