@@ -7,4 +7,5 @@ export * from './api/common.js';
 export * from './api/system.js';
 export * from './constants/problem-types.js';
 export * from './constants/rate-limits.js';
+export * from './constants/user-roles.js';
 export * from './money.js';

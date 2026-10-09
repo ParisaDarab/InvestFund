@@ -183,10 +183,10 @@ describe('GET /api/v1/openapi.json', () => {
     expect(doc.components.schemas).toHaveProperty('ProblemDetails');
   });
 
-  it('is not served when OPENAPI_PUBLIC is off', async () => {
+  it('requires an admin token when OPENAPI_PUBLIC is off', async () => {
     const { app } = buildTestApp({ env: { OPENAPI_PUBLIC: 'false' } });
     const res = await request(app).get('/api/v1/openapi.json');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     expect(res.headers['content-type']).toMatch(PROBLEM_JSON);
   });
 });

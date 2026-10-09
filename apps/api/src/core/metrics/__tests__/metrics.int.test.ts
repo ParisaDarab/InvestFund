@@ -7,6 +7,8 @@ import { createApp } from '../../../app.js';
 import { ReadinessRegistry } from '../../health/health-registry.js';
 import { asyncHandler } from '../../http/async-handler.js';
 import { createLogger } from '../../logger/logger.js';
+import { MemoryRateLimitStore } from '../../rateLimit/memory-store.js';
+import { createRateLimiter } from '../../rateLimit/rate-limit.js';
 import { createHttpMetrics, createMetricsApp, UNMATCHED_ROUTE } from '../metrics.js';
 
 function setup() {
@@ -30,6 +32,11 @@ function setup() {
     logger,
     readiness: new ReadinessRegistry(logger),
     metrics,
+    security: { corsOrigins: ['http://localhost:3000'], trustProxy: false, hsts: false },
+    rateLimiter: createRateLimiter({
+      store: new MemoryRateLimitStore(),
+      hashSubject: (subject) => subject,
+    }),
     modules: [{ path: '/items', router }],
   });
   return { app, metrics };

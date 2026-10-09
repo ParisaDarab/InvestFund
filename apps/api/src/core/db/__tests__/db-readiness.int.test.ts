@@ -18,7 +18,10 @@ describe('GET /health/ready with the db check (AC2)', () => {
       expect(res.status).toBe(200);
       expect(HealthReport.parse(res.body)).toEqual({
         status: 'ok',
-        checks: [{ name: 'db', status: 'ok' }],
+        checks: [
+          { name: 'db', status: 'ok' },
+          { name: 'storage', status: 'ok' },
+        ],
       });
     } finally {
       await close();
@@ -34,7 +37,10 @@ describe('GET /health/ready with the db check (AC2)', () => {
       expect(res.status).toBe(503);
       expect(HealthReport.parse(res.body)).toEqual({
         status: 'fail',
-        checks: [{ name: 'db', status: 'fail' }],
+        checks: [
+          { name: 'db', status: 'fail' },
+          { name: 'storage', status: 'ok' },
+        ],
       });
       expect(res.text).not.toMatch(/127\.0\.0\.1|unreachable-pw-k3|P1001/);
       expect(logs.text()).toContain('readiness check failed');

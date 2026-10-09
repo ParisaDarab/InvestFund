@@ -47,6 +47,25 @@ export class ValidationError extends DomainError {
   }
 }
 
+/**
+ * 401 `unauthenticated`: the access token is missing, malformed, wrongly signed or expired.
+ * Adds `WWW-Authenticate: Bearer` (RFC 6750), with `error="invalid_token"` when a token was sent.
+ */
+export class UnauthenticatedError extends DomainError {
+  constructor(
+    detail = 'Authentication is required.',
+    options: DomainErrorOptions & { invalidToken?: boolean } = {},
+  ) {
+    super('unauthenticated', detail, {
+      ...options,
+      headers: {
+        'WWW-Authenticate':
+          options.invalidToken === true ? 'Bearer error="invalid_token"' : 'Bearer',
+      },
+    });
+  }
+}
+
 /** 404 `not-found`. Also used when the caller may not know that the resource exists. */
 export class NotFoundError extends DomainError {
   constructor(detail = 'The resource was not found.', options: DomainErrorOptions = {}) {
@@ -66,6 +85,13 @@ export class ForbiddenError extends DomainError {
     options: DomainErrorOptions & { slug?: ForbiddenSlug } = {},
   ) {
     super(options.slug ?? 'forbidden', detail, options);
+  }
+}
+
+/** 413 `payload-too-large`: a body or upload exceeds its size limit. */
+export class PayloadTooLargeError extends DomainError {
+  constructor(detail = 'The payload is too large.', options: DomainErrorOptions = {}) {
+    super('payload-too-large', detail, options);
   }
 }
 

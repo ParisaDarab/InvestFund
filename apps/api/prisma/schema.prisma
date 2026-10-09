@@ -5,7 +5,7 @@
 // timestamptz. The `vector` (pgvector) and `citext` extensions are enabled by the first
 // migration (`init_extensions`); vector columns use `Unsupported("vector(n)")` from P4.
 //
-// No domain models yet: P1 adds the first tables with a normal additive migration.
+// Domain models start in P1. Infrastructure tables live here too (`rate_limit_buckets`, P0-API-02).
 
 generator client {
   provider      = "prisma-client-js"
@@ -18,4 +18,24 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// Fixed-window rate-limit counters (`core/rateLimit`, docs/API.md §3). One row per preset and
+// subject; the subject is an HMAC (IP or user), never a raw IP address. Rows past
+// `window_ends_at` are reset in place by the next hit and swept by `deleteExpired()`.
+// Postgres-backed until Redis returns in R2.
+model RateLimitBucket {
+  id           String   @id @db.Uuid
+  /// Preset name (`auth`, `upload`, `ai`, `sensitive`, `default`).
+  preset       String   @db.VarChar(32)
+  /// HMAC-SHA256 hex of the namespaced subject (`ip:<addr>` or `user:<id>`).
+  keyHash      String   @map("key_hash") @db.Char(64)
+  hits         Int
+  windowEndsAt DateTime @map("window_ends_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([preset, keyHash])
+  @@index([windowEndsAt])
+  @@map("rate_limit_buckets")
 }

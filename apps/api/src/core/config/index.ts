@@ -1,10 +1,15 @@
 export {
   ConfigError,
+  DEFAULT_WEB_ORIGIN,
+  DEV_PLACEHOLDER_ENCRYPTION_KEY,
+  ENCRYPTION_KEY_BYTES,
   EnvSchema,
   loadConfig,
   MIN_PRODUCTION_SECRET_LENGTH,
+  RATE_LIMIT_STORES,
   type AppConfig,
   type ConfigIssue,
   type ConfigProblem,
   type Env,
+  type TrustProxySetting,
 } from './config.js';

@@ -176,6 +176,7 @@ services:
       JWT_REFRESH_SECRET: ${SANDBOX_JWT_REFRESH_SECRET:-sandbox-only-refresh-secret-not-for-production}
       ENCRYPTION_KEY: ${SANDBOX_ENCRYPTION_KEY:-c2FuZGJveC1vbmx5LWtleS1ub3QtZm9yLXByb2QtMDA=}
       ENCRYPTION_KEY_VERSION: 1
+      IP_HASH_SECRET: ${SANDBOX_IP_HASH_SECRET:-sandbox-only-ip-hash-secret-not-for-production}
     volumes:
       - api-storage:/var/lib/investfund/storage
     depends_on: &app-depends-on

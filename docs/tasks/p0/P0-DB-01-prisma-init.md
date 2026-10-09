@@ -1,5 +1,5 @@
 # P0-DB-01: Prisma initialisation and database access foundation
-Owner: backend        Estimate: S        Status: in-review
+Owner: backend        Estimate: S        Status: committed (fc8fbfe)
 Requirements: NFR-MAINT-01, NFR-SEC-01 (parameterised queries)
 Depends on: P0-API-01, P0-INFRA-01
 

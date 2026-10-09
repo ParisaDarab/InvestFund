@@ -71,7 +71,7 @@ Suspended users get `401` on refresh and `403 account-suspended` on any request 
 | 500 | `internal-error` | Unexpected server error. Title `Internal server error`, generic `detail`, never a stack or internal message (the stack is logged with the request ID only). Never thrown as a `DomainError`; the central handler uses it for any unrecognised error (review decision 2026-10-09, replaces `about:blank`) |
 | 503 | `dependency-unavailable` | A database, queue, LLM or Google dependency is unreachable or its circuit is open |
 
-## 3. Rate-limit presets (`core/rateLimit`, Redis-backed)
+## 3. Rate-limit presets (`core/rateLimit`; Postgres-backed in R0–R1, Redis from R2)
 
 | Preset | Limit | Applied to |
 |---|---|---|

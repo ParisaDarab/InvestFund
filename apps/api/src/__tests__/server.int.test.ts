@@ -64,6 +64,8 @@ describe('server entry point', () => {
         API_PORT: '0',
         METRICS_ENABLED: 'false',
         JWT_ACCESS_SECRET: 'process-test-secret',
+        ENCRYPTION_KEY: Buffer.alloc(32, 5).toString('base64'),
+        IP_HASH_SECRET: 'process-test-ip-secret',
         // Prisma connects lazily, so the server starts without reaching the database.
         DATABASE_URL: 'postgresql://investfund:investfund@127.0.0.1:1/investfund',
       });

@@ -11,12 +11,10 @@ import { ProblemDetails } from '@investfund/shared';
 
 import { DependencyUnavailableError, NotFoundError } from '../core/errors/domain-errors.js';
 
-import { buildTestApp } from './support.js';
+import { buildTestApp, PRODUCTION_TEST_ENV, signTestToken } from './support.js';
 
 const PROBLEM_JSON = /^application\/problem\+json/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-/** Strong enough for the production secret check; synthetic, test-only. */
-const PRODUCTION_TEST_SECRET = 'test-only-production-secret-'.padEnd(48, 'x');
 
 function appThrowing(error: unknown) {
   const router = Router();
@@ -168,28 +166,27 @@ describe('/metrics is not exposed publicly', () => {
 });
 
 describe('OPENAPI_PUBLIC gate (through the container)', () => {
-  it('is off by default in production', async () => {
-    const { app } = buildTestApp({
-      env: { NODE_ENV: 'production', JWT_ACCESS_SECRET: PRODUCTION_TEST_SECRET },
-    });
+  it('is admin-only by default in production (P0-API-02 AC10)', async () => {
+    // The rate limiter is never reached without a valid token, so no database is needed here.
+    const { app } = buildTestApp({ env: PRODUCTION_TEST_ENV });
     const res = await request(app).get('/api/v1/openapi.json');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     expect(res.headers['content-type']).toMatch(PROBLEM_JSON);
     expect(res.text).not.toContain('"openapi"');
+
+    const founder = await signTestToken({
+      role: 'founder',
+      secret: PRODUCTION_TEST_ENV.JWT_ACCESS_SECRET,
+    });
+    const forbidden = await request(app)
+      .get('/api/v1/openapi.json')
+      .set('Authorization', `Bearer ${founder}`);
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.text).not.toContain('"openapi"');
   });
 
-  it('can be switched on explicitly in production', async () => {
-    const { app } = buildTestApp({
-      env: {
-        NODE_ENV: 'production',
-        OPENAPI_PUBLIC: 'true',
-        JWT_ACCESS_SECRET: PRODUCTION_TEST_SECRET,
-      },
-    });
-    const res = await request(app).get('/api/v1/openapi.json');
-    expect(res.status).toBe(200);
-    expect((res.body as { openapi?: unknown }).openapi).toBe('3.1.0');
-  });
+  // Production with OPENAPI_PUBLIC=true needs the Postgres rate-limit store (memory is refused in
+  // production), so it is covered with a migrated test database in core-security.int.test.ts.
 
   it('is on by default outside production', async () => {
     const { app } = buildTestApp({ env: { NODE_ENV: 'development' } });

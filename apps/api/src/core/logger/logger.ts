@@ -26,6 +26,9 @@ export const SENSITIVE_KEYS = [
   'refreshToken',
   'apiKey',
   'secret',
+  'plaintext',
+  'ciphertext',
+  'encryptionKey',
 ] as const;
 
 export const REDACTED = '[Redacted]';

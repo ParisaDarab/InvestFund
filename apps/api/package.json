@@ -19,6 +19,8 @@
     "@investfund/shared": "workspace:*",
     "@prisma/client": "6.19.3",
     "express": "5.2.1",
+    "helmet": "8.3.0",
+    "jose": "6.2.12",
     "pino": "10.3.1",
     "pino-http": "11.0.0",
     "prom-client": "15.1.3",

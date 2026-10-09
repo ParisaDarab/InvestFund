@@ -61,10 +61,10 @@ describe('test databases', { timeout: 60_000 }, () => {
         SELECT extname FROM pg_extension WHERE extname IN ('vector', 'citext') ORDER BY extname`;
       expect(extensions.map((row) => row.extname)).toEqual(['citext', 'vector']);
       const migrations = await prisma.$queryRaw<{ migration_name: string }[]>`
-        SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL`;
-      expect(migrations.map((row) => row.migration_name)).toEqual([
-        expect.stringMatching(/^\d{14}_init_extensions$/),
-      ]);
+        SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL
+        ORDER BY migration_name`;
+      // init_extensions is the first migration; later cards append theirs.
+      expect(migrations[0]?.migration_name).toMatch(/^\d{14}_init_extensions$/);
     }
   });
 

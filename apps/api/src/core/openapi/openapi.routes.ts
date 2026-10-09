@@ -1,17 +1,26 @@
 /**
- * `GET /api/v1/openapi.json`: the OpenAPI 3.1 document generated from the shared Zod schemas.
- * Public in local and sandbox (`OPENAPI_PUBLIC`); in production it is off until the admin guard
- * exists (docs/API.md §5: admin only in production). The `default` rate limit is added by
- * P0-API-02.
+ * `GET /api/v1/openapi.json`: the OpenAPI 3.1 document generated from the shared Zod schemas
+ * (docs/API.md §5), with the `default` rate limit.
+ *
+ * Exposure is decided in the composition root: `OPENAPI_PUBLIC=true` (local, sandbox) passes no
+ * guards; otherwise the route is mounted behind `requireRole('admin')` (401 without a valid
+ * token, 403 for other roles).
  */
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 
 import type { OpenApiDocument } from '@investfund/shared/openapi';
 
-export function buildOpenApiRoutes(document: () => OpenApiDocument): Router {
+export interface OpenApiRouteOptions {
+  readonly document: () => OpenApiDocument;
+  /** Auth guards to run first (empty when the document is public). */
+  readonly guards: readonly RequestHandler[];
+  readonly rateLimit: RequestHandler;
+}
+
+export function buildOpenApiRoutes(options: OpenApiRouteOptions): Router {
   const router = Router();
-  router.get('/openapi.json', (_req, res) => {
-    res.set('Cache-Control', 'no-cache').json(document());
+  router.get('/openapi.json', ...options.guards, options.rateLimit, (_req, res) => {
+    res.set('Cache-Control', 'no-cache').json(options.document());
   });
   return router;
 }

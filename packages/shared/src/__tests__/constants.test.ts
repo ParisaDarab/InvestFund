@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import apiDoc from '../../../../docs/API.md?raw';
+import databaseDoc from '../../../../docs/DATABASE.md?raw';
 import {
   PROBLEM_TYPE_BASE_URI,
   PROBLEM_TYPE_SLUGS,
@@ -8,6 +9,7 @@ import {
   problemTypeUri,
 } from '../constants/problem-types.js';
 import { RATE_LIMIT_PRESETS } from '../constants/rate-limits.js';
+import { isUserRole, USER_ROLES } from '../constants/user-roles.js';
 
 /** Returns the Markdown between a heading line starting with `start` and the next `## ` heading. */
 function section(markdown: string, start: string): string {
@@ -59,5 +61,20 @@ describe('rate-limit presets', () => {
     const rows = tableRows(section(apiDoc, '## 3. Rate-limit presets'));
     const documented = rows.flatMap(([preset = '']) => backticked(preset));
     expect([...RATE_LIMIT_PRESETS]).toEqual(documented);
+  });
+});
+
+describe('user roles', () => {
+  it('match the UserRole enum in docs/DATABASE.md §3', () => {
+    const row = databaseDoc.split('\n').find((line) => line.startsWith('| `UserRole` |'));
+    expect(row).toBeDefined();
+    const [, values = ''] = (row ?? '').slice(1, -1).split('|');
+    expect([...USER_ROLES]).toEqual(backticked(values));
+  });
+
+  it('narrows unknown values', () => {
+    expect(isUserRole('admin')).toBe(true);
+    expect(isUserRole('superuser')).toBe(false);
+    expect(isUserRole(1)).toBe(false);
   });
 });
