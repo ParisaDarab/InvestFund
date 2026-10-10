@@ -2,8 +2,9 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vitest/config';
 
-// Web unit tests. A DOM environment (jsdom) and Testing Library are added by P0-TEST-01 once
-// approved; until then component tests render on the server with react-dom/server.
+// Web unit tests. They run in Node by default; component tests that need a DOM opt in per file
+// with a `// @vitest-environment jsdom` comment and render with Testing Library. Server-rendering
+// tests use react-dom/server.
 export default defineConfig({
   resolve: {
     alias: {
@@ -14,5 +15,7 @@ export default defineConfig({
     name: 'web',
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}', 'test/**/*.test.{ts,tsx}'],
+    // The API client builds URLs from the public env; MSW handlers use the same base.
+    env: { NEXT_PUBLIC_API_URL: 'http://api.test' },
   },
 });

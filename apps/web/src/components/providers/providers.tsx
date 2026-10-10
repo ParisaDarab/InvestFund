@@ -4,6 +4,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
 import { useState } from 'react';
 
+import { ApiMocking } from './api-mocking';
+
 import type { ReactNode } from 'react';
 
 import { createQueryClient } from '@/lib/query-client';
@@ -14,7 +16,7 @@ export interface ProvidersProps {
 
 /**
  * Client-side providers shared by every route: theme (dark by default, class on <html>, system
- * option available) and TanStack Query. next-intl's client provider is rendered by the locale
+ * option available), TanStack Query and the dev-only MSW opt-in (`ApiMocking`). next-intl's client provider is rendered by the locale
  * layout because it needs the server-resolved locale and messages.
  */
 export function Providers({ children }: ProvidersProps) {
@@ -23,7 +25,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ApiMocking>{children}</ApiMocking>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

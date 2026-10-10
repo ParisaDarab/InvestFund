@@ -42,6 +42,14 @@
       "switchToDark": "Switch to the dark theme"
     }
   },
+  "devApiStatus": {
+    "checking": "API: checking",
+    "ready": "API: ready",
+    "notReady": "API: not ready",
+    "unreachable": "API: unreachable",
+    "error": "API: unexpected response",
+    "host": "({host})"
+  },
   "devUi": {
     "metaTitle": "UI showcase",
     "title": "UI showcase",

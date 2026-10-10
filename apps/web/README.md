@@ -5,7 +5,9 @@ InvestFund's Next.js (App Router) frontend.
 ## Stack
 
 Next.js 16 (Turbopack), React 19, TypeScript (strict), Tailwind CSS 4, next-intl 4, next-themes,
-TanStack Query 5, Zod 4, Radix UI primitives (shadcn/ui style wrappers) and lucide-react icons.
+TanStack Query 5, React Hook Form 7, Zod 4, Radix UI primitives (shadcn/ui style wrappers),
+lucide-react icons and MSW 2 (API mocking for tests and the dev opt-in). Component tests use
+Testing Library on jsdom.
 Inter is self-hosted through `next/font/google`.
 
 ## Running
@@ -20,6 +22,7 @@ pnpm --filter @investfund/web build
 pnpm --filter @investfund/web start
 pnpm --filter @investfund/web typecheck
 pnpm --filter @investfund/web test       # or `pnpm test` at the repository root
+pnpm --filter @investfund/web msw:init   # generate public/mockServiceWorker.js (see "API mocking")
 ```
 
 Next.js reads `.env*` files from `apps/web`, not from the repository root.
@@ -34,6 +37,7 @@ src/
     [...rest]/page.tsx      catch-all -> notFound()
     (marketing)/            "/" landing placeholder, error.tsx, not-found.tsx
     (auth)/login/           "/login" placeholder, error.tsx, not-found.tsx
+    (app)/layout.tsx        app shell placeholder (renders the dev-only API status badge)
     (app)/app/              "/app" placeholder, error.tsx, not-found.tsx
     (dev)/dev/ui/           internal design-system showcase (see "Design system" below)
   components/ui/            themed primitives: Button, Card, Badge/StatusPill, Input, Label, Textarea,
@@ -42,13 +46,21 @@ src/
   components/brand/         Logo (placeholder wordmark with accent dot)
   components/providers/     ThemeProvider (dark default, class strategy) + QueryClientProvider
   components/feedback/      shared error and not-found states
+  components/dev/           dev-only API status badge (DevApiStatus server wrapper + client badge)
   i18n/                     routing (en-GB only), request config, locale-aware navigation
+  lib/api/client.ts         apiFetch, ApiError, access-token provider hook, Retry-After parsing
+  lib/api/problem-form.ts   applyProblemToForm: problem+json errors[] -> React Hook Form fields
+  lib/api/query.ts          createQueryKeys factory, retryOnceOnNetworkError
+  lib/api/health.ts         healthKeys, fetchHealthReport, useHealth (GET /health/ready)
   lib/cn.ts                 class-name joiner (no tailwind-merge: see the comment in the file)
   lib/dev-ui.ts             whether internal dev pages are served
   lib/env.ts                Zod validation of public env
   lib/query-client.ts       TanStack Query defaults (queries retry 1, mutations never, no focus refetch)
   lib/security-headers.ts   CSP baseline and security headers (applied in next.config.ts)
   messages/en-GB.json       every user-visible string
+  mocks/handlers/           MSW handlers per domain (health) and the default handler list
+  mocks/node.ts             MSW server for Vitest (test/support/msw.ts wires its lifecycle)
+  mocks/browser.ts          MSW browser worker for the dev opt-in
   proxy.ts                  next-intl locale prefixing (Next.js 16 name for middleware)
   styles/globals.css        Tailwind entry point: design tokens, theme mapping, typography, motion
 ```
@@ -95,6 +107,63 @@ Source of truth: `docs/DESIGN_SYSTEM.md`. Tailwind 4 is configured in CSS (there
 The showcase at `/en-GB/dev/ui` lists the tokens and every primitive in the active theme. It is
 served by `next dev`; production builds return 404 for it unless the build runs with
 `INVESTFUND_DEV_UI=true` (used for the Playwright + axe check).
+
+## API client
+
+Every API call goes through `apiFetch` in `src/lib/api/client.ts`, wrapped in one TanStack Query
+hook per endpoint (`useHealth()` in `lib/api/health.ts` is the example):
+
+```ts
+const report = await apiFetch('/health/ready', { schema: HealthReport, prefix: false });
+const startup = await apiFetch(`/startups/${id}`, { schema: Startup }); // -> /api/v1/startups/{id}
+```
+
+- URL: `NEXT_PUBLIC_API_URL` + `/api/v1` + path. `prefix: false` skips `/api/v1` for the system
+  endpoints that the API serves at its root (`/health/live`, `/health/ready`).
+- JSON in and out; `credentials: 'include'` only for `/auth/*` (the refresh cookie is scoped to
+  `/api/v1/auth`), `omit` otherwise.
+- `Authorization: Bearer` comes from `setAccessTokenProvider()` (no-op until the P1 auth session).
+  The provider is only read in the browser, never on the server, so tokens cannot leak between
+  requests.
+- Success bodies are parsed with the shared Zod schema. `acceptStatuses` lists non-2xx statuses that
+  are normal responses (`/health/ready` answers `503 HealthReport`).
+- Every failure is an `ApiError` with `kind`: `problem` (problem+json body in `problem`, field
+  errors in `fieldErrors`), `http` (error status without a problem body), `contract` (the body does
+  not match the schema: a bug, logged to the console in development only, without the body) or
+  `network` (no response). `status`, `requestId` and `retryAfterSeconds` (from `Retry-After`) are
+  set when known. Aborted requests rethrow the original `AbortError`.
+- Never log tokens or response bodies.
+- Forms: `applyProblemToForm(error, form)` puts `errors[]` (`email` or `body.email`) on React Hook
+  Form fields and focuses the first one; it returns the `unmatched` errors for a summary or toast.
+- Queries: build keys with `createQueryKeys('<domain>')`; `retryOnceOnNetworkError` is the `retry`
+  predicate for reads that should survive a network blip but never repeat a 4xx/5xx.
+
+The dev-only **API status badge** (bottom left of the app shell) shows `useHealth()`: checking,
+ready, not ready (503), unreachable or unexpected response. It is rendered in `next dev` and left
+out of production builds unless `INVESTFUND_DEV_UI=true`, like the UI showcase.
+
+## API mocking (MSW)
+
+Handlers live in `src/mocks/handlers/` (one file per domain, exported through `handlers/index.ts`).
+
+- **Tests:** call `setupMswServer()` from `test/support/msw.ts` at the top of a test file. Unhandled
+  requests fail the test; override per test with `server.use(...)`. `vitest.config.ts` sets
+  `NEXT_PUBLIC_API_URL=http://api.test`. Tests run in Node; files that need a DOM start with
+  `// @vitest-environment jsdom` and render with Testing Library (call `cleanup()` in `afterEach`).
+- **Development (opt-in):** generate the worker once (and after MSW upgrades), then start the dev
+  server with the flag:
+
+  ```bash
+  pnpm --filter @investfund/web msw:init        # writes public/mockServiceWorker.js (gitignored)
+  # apps/web/.env.local
+  NEXT_PUBLIC_API_MOCKING=enabled
+  ```
+
+  Browser requests with a handler are answered by MSW; everything else goes to the real API.
+  Server Component requests are not mocked. The worker only starts under `next dev`: in a
+  production build `NODE_ENV` is `production`, the check is the literal `false` and MSW is not
+  bundled at all. The worker file is generated, not committed, so it is never deployed; ESLint and
+  Prettier ignore it.
 
 ## Security headers
 

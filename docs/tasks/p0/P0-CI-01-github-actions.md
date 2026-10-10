@@ -1,5 +1,5 @@
 # P0-CI-01: GitHub Actions CI pipeline
-Owner: tester        Estimate: M        Status: in-review (R0 S0.4, trimmed scope)
+Owner: tester        Estimate: M        Status: committed 5c90a03 (R0 S0.4, trimmed scope)
 Requirements: NFR-MAINT-01 (CI green on every PR), NFR-SEC-01 (dependency audit)
 Depends on: P0-TEST-01, P0-INFRA-01
 
