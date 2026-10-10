@@ -10,7 +10,25 @@
  */
 import { buildOpenApiDocument, type OpenApiDocument } from '@investfund/shared/openapi';
 
-import { JwtAccessTokenVerifier } from './auth/access-token.js';
+import { GoogleOAuthProvider, type IdentityProvider } from '../modules/auth/google-provider.js';
+import { SessionService } from '../modules/auth/session.service.js';
+import { createDealService } from '../modules/deals/deals.routes.js';
+import { EmailDispatcher } from '../modules/email/email-dispatcher.js';
+import {
+  LogEmailSender,
+  SmtpEmailSender,
+  type EmailSender,
+} from '../modules/email/email-sender.js';
+import { buildModules } from '../modules/index.js';
+import { Notifier } from '../modules/notifications/notifier.js';
+import {
+  MemoryRealtimeBus,
+  PostgresRealtimeBus,
+  type RealtimeBus,
+} from '../modules/realtime/realtime-bus.js';
+import { RealtimeHub } from '../modules/realtime/realtime-hub.js';
+
+import { JwtAccessTokenIssuer, JwtAccessTokenVerifier } from './auth/access-token.js';
 import { AuthGuards } from './auth/auth-guards.js';
 import { AesGcmCipher, type Cipher } from './crypto/cipher.js';
 import { hmacHex, hmacIp } from './crypto/hashing.js';
@@ -26,7 +44,9 @@ import { MemoryRateLimitStore } from './rateLimit/memory-store.js';
 import { PostgresRateLimitStore } from './rateLimit/postgres-store.js';
 import { createRateLimiter, type RateLimiter } from './rateLimit/rate-limit.js';
 
-import type { AppDeps } from '../app.js';
+import type { ApiModule, AppDeps } from '../app.js';
+import type { ModuleContext } from '../modules/context.js';
+import type { ActorLoader } from './auth/auth.types.js';
 import type { AppConfig } from './config/config.js';
 import type { StorageProvider } from './file-storage/storage-provider.js';
 import type { CloseHook } from './http/lifecycle.js';
@@ -51,13 +71,27 @@ export interface Container {
   readonly rateLimiter: RateLimiter;
   /** Run on shutdown after the HTTP servers have drained, in registration order. */
   readonly closeHooks: CloseHook[];
-  /** The dependencies `createApp` needs. */
+  readonly moduleContext: ModuleContext;
+  readonly emailDispatcher: EmailDispatcher;
+  /** Starts background work (email outbox, offer expiry). Not called by tests. */
+  startBackgroundJobs(): void;
+  /** The dependencies `createApp` needs, including every domain module. */
   appDeps(): AppDeps;
 }
 
 export interface ContainerOptions {
   /** Log destination (tests capture logs here). Defaults to stdout. */
   readonly logDestination?: DestinationStream;
+  /** Replaces the Google provider (tests). */
+  readonly identityProvider?: IdentityProvider | null;
+  /** Replaces the email transport (tests). */
+  readonly emailSender?: EmailSender;
+  /**
+   * How guards resolve the caller's current role and status. Defaults to the database (so
+   * suspension and onboarding apply immediately); `null` trusts the token alone (unit tests of
+   * token verification only).
+   */
+  readonly loadActor?: ActorLoader | null;
 }
 
 /** Builds the OpenAPI document once, on first request. */
@@ -90,7 +124,18 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
   });
   readiness.register(createStorageReadinessCheck(storage));
 
-  const authGuards = new AuthGuards(new JwtAccessTokenVerifier(config.auth.jwtAccessSecret));
+  // Role and status are re-read from the database on every authenticated request.
+  const authGuards = new AuthGuards(
+    new JwtAccessTokenVerifier(config.auth.jwtAccessSecret),
+    options.loadActor === null
+      ? undefined
+      : (options.loadActor ??
+          ((userId) =>
+            prisma.user.findUnique({
+              where: { id: userId },
+              select: { role: true, status: true },
+            }))),
+  );
 
   let rateLimitStore: RateLimitStore;
   if (config.rateLimit.store === 'postgres') {
@@ -119,13 +164,63 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
     );
   }
 
+  const realtimeBus: RealtimeBus =
+    config.realtime.bus === 'postgres'
+      ? new PostgresRealtimeBus(config.database.url, logger.child({ component: 'realtime' }))
+      : new MemoryRealtimeBus();
+  const realtimeHub = new RealtimeHub(realtimeBus);
+  closeHooks.unshift(async () => {
+    realtimeHub.close();
+    await realtimeBus.close();
+  });
+
+  const unitOfWork = createUnitOfWork(prisma);
+  const moduleContext: ModuleContext = {
+    config,
+    logger,
+    prisma,
+    unitOfWork,
+    authGuards,
+    rateLimiter,
+    storage,
+    identityProvider:
+      options.identityProvider !== undefined
+        ? options.identityProvider
+        : config.google === null
+          ? null
+          : new GoogleOAuthProvider(config.google),
+    accessTokens: new JwtAccessTokenIssuer(config.auth.jwtAccessSecret),
+    sessions: new SessionService(prisma, config.session.refreshTtlDays),
+    realtimeBus,
+    realtimeHub,
+    notifier: new Notifier(),
+  };
+  if (config.google === null && options.identityProvider === undefined) {
+    logger.info(
+      'Google sign-in is not configured (GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI): sign-in answers 503',
+    );
+  }
+
+  const emailLogger = logger.child({ component: 'email' });
+  const emailSender =
+    options.emailSender ??
+    (config.email.delivery === 'smtp' && config.email.smtp !== null
+      ? new SmtpEmailSender(config.email.smtp, config.email.from)
+      : new LogEmailSender(emailLogger));
+  const emailDispatcher = new EmailDispatcher(prisma, emailSender, config.webOrigin, emailLogger);
+  if (config.email.delivery === 'disabled') {
+    logger.warn('EMAIL_DELIVERY=disabled: transactional email is queued but never sent');
+  }
+  let modules: readonly ApiModule[] | undefined;
+  let expiryTimer: NodeJS.Timeout | null = null;
+
   return {
     config,
     logger,
     readiness,
     metrics,
     prisma,
-    unitOfWork: createUnitOfWork(prisma),
+    unitOfWork,
     cipher,
     hashIp: (ip) => hmacIp(ip, ipHashSecret),
     storage,
@@ -133,6 +228,25 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
     rateLimitStore,
     rateLimiter,
     closeHooks,
+    moduleContext,
+    emailDispatcher,
+    startBackgroundJobs() {
+      if (config.email.dispatcherEnabled && config.email.delivery !== 'disabled') {
+        emailDispatcher.start();
+        closeHooks.unshift(() => emailDispatcher.stop());
+      }
+      const deals = createDealService(moduleContext);
+      expiryTimer ??= setInterval(() => {
+        deals.expireDueOffers().catch((error: unknown) => {
+          logger.warn({ err: { message: String(error) } }, 'offer expiry sweep failed');
+        });
+      }, 60_000);
+      expiryTimer.unref();
+      closeHooks.unshift(() => {
+        if (expiryTimer !== null) clearInterval(expiryTimer);
+        return Promise.resolve();
+      });
+    },
     appDeps: () => ({
       logger,
       readiness,
@@ -140,6 +254,7 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
       openApi,
       rateLimiter,
       security: config.security,
+      modules: (modules ??= buildModules(moduleContext)),
     }),
   };
 }

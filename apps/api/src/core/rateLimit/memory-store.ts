@@ -31,6 +31,11 @@ export class MemoryRateLimitStore implements RateLimitStore {
     return this.buckets.size;
   }
 
+  /** Forgets every counter (tests). */
+  clear(): void {
+    this.buckets.clear();
+  }
+
   hit(input: HitInput): Promise<HitResult> {
     const now = this.now();
     if (++this.hitsSinceSweep >= this.sweepEvery) {

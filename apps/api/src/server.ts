@@ -37,6 +37,7 @@ async function main(): Promise<void> {
     process.exit(1);
   });
 
+  container.startBackgroundJobs();
   const servers: Server[] = [];
   const api = await startHttpServer(
     createApp(container.appDeps()),
@@ -61,6 +62,8 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ signal }, 'shutdown started');
+    // Long-lived SSE streams would hold the drain open: end them first (clients reconnect).
+    container.moduleContext.realtimeHub.close();
     void shutdownGracefully({
       servers,
       timeoutMs: config.shutdown.timeoutMs,

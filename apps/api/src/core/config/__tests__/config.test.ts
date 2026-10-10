@@ -17,6 +17,7 @@ const REQUIRED = {
   DATABASE_URL,
   ENCRYPTION_KEY: KEY_A,
   IP_HASH_SECRET: IP_SECRET,
+  JWT_REFRESH_SECRET: 'unit-test-refresh-secret',
 } as const;
 /** A valid production environment (strong secrets, explicit WEB_URL). */
 const PRODUCTION = {
@@ -24,6 +25,7 @@ const PRODUCTION = {
   NODE_ENV: 'production',
   JWT_ACCESS_SECRET: 'x'.repeat(48),
   IP_HASH_SECRET: 'y'.repeat(48),
+  JWT_REFRESH_SECRET: 'z'.repeat(48),
   WEB_URL: 'https://app.investfund.test',
 } as const;
 
@@ -63,7 +65,45 @@ describe('loadConfig', () => {
       },
       storage: { dir: resolve('./storage'), maxUploadBytes: 25 * 1024 * 1024 },
       rateLimit: { store: 'postgres' },
+      session: { stateSecret: 'unit-test-refresh-secret', refreshTtlDays: 30 },
+      google: null,
+      webOrigin: 'http://localhost:3000',
+      email: {
+        delivery: 'log',
+        dispatcherEnabled: true,
+        from: 'InvestFund <no-reply@investfund.local>',
+        smtp: null,
+      },
+      realtime: { bus: 'postgres' },
     });
+  });
+
+  it('enables Google sign-in only when the client id, secret and redirect URI are all set', () => {
+    expect(loadConfig({ ...REQUIRED, GOOGLE_CLIENT_ID: 'id' }).google).toBeNull();
+    const config = loadConfig({
+      ...REQUIRED,
+      GOOGLE_CLIENT_ID: 'id',
+      GOOGLE_CLIENT_SECRET: 'secret',
+      GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/v1/auth/google/callback',
+      GOOGLE_AUTH_BASE_URL: 'http://localhost:4020/',
+    });
+    expect(config.google).toMatchObject({
+      clientId: 'id',
+      authBaseUrl: 'http://localhost:4020',
+      oauth2BaseUrl: 'https://oauth2.googleapis.com',
+    });
+  });
+
+  it('requires SMTP_HOST when EMAIL_DELIVERY is smtp', () => {
+    expect(expectConfigError({ ...REQUIRED, EMAIL_DELIVERY: 'smtp' }).issues).toEqual([
+      { variable: 'SMTP_HOST', problem: 'missing' },
+    ]);
+  });
+
+  it('rejects a weak JWT_REFRESH_SECRET in production', () => {
+    expect(expectConfigError({ ...PRODUCTION, JWT_REFRESH_SECRET: 'change-me' }).issues).toEqual([
+      { variable: 'JWT_REFRESH_SECRET', problem: 'weak' },
+    ]);
   });
 
   it('parses explicit values', () => {

@@ -62,6 +62,9 @@ export const TEST_ENV = {
   JWT_ACCESS_SECRET: TEST_JWT_SECRET,
   ENCRYPTION_KEY: TEST_ENCRYPTION_KEY,
   IP_HASH_SECRET: 'test-only-ip-hash-secret',
+  JWT_REFRESH_SECRET: 'test-only-refresh-secret',
+  EMAIL_DISPATCHER_ENABLED: 'false',
+  REALTIME_BUS: 'memory',
   STORAGE_DIR: TEST_FILES_DIR,
   /** Unit and app tests count in memory; the Postgres store has its own integration tests. */
   RATE_LIMIT_STORE: 'memory',
@@ -74,6 +77,7 @@ export const PRODUCTION_TEST_ENV = {
   NODE_ENV: 'production',
   JWT_ACCESS_SECRET: 'test-only-production-secret-'.padEnd(48, 'x'),
   IP_HASH_SECRET: 'test-only-production-ip-secret-'.padEnd(48, 'y'),
+  JWT_REFRESH_SECRET: 'test-only-production-refresh-'.padEnd(48, 'z'),
   WEB_URL: 'https://app.investfund.test',
   RATE_LIMIT_STORE: 'postgres',
 };
@@ -141,7 +145,11 @@ export interface TestAppOptions {
 
 export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const logs = captureLogs();
-  const container = createContainer(testConfig(options.env), { logDestination: logs.stream });
+  // Token-only guards: these apps test middleware, not users stored in a database.
+  const container = createContainer(testConfig(options.env), {
+    logDestination: logs.stream,
+    loadActor: null,
+  });
   openContainers.add(container);
   const modules =
     typeof options.modules === 'function' ? options.modules(container) : options.modules;

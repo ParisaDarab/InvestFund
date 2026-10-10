@@ -15,14 +15,17 @@ import { ForbiddenError, UnauthenticatedError } from '../errors/domain-errors.js
 
 import { InvalidAccessTokenError, type AccessTokenVerifier } from './access-token.js';
 
-import type { AuthUser } from './auth.types.js';
+import type { ActorLoader, AuthUser } from './auth.types.js';
 import type { Request, RequestHandler } from 'express';
 
 /** `Bearer` scheme (case-insensitive) followed by a JWS compact token. */
 const BEARER = /^Bearer +([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i;
 
 export class AuthGuards {
-  constructor(private readonly verifier: AccessTokenVerifier) {}
+  constructor(
+    private readonly verifier: AccessTokenVerifier,
+    private readonly loadActor?: ActorLoader,
+  ) {}
 
   /** Verifies the access token and sets `req.user`. */
   requireAuth(): RequestHandler {
@@ -32,12 +35,22 @@ export class AuthGuards {
     };
   }
 
+  /** Authenticates when an `Authorization` header is present; anonymous callers pass through. */
+  optionalAuth(): RequestHandler {
+    return async (req, _res, next) => {
+      if (req.headers.authorization !== undefined && req.headers.authorization !== '') {
+        await this.authenticate(req);
+      }
+      next();
+    };
+  }
+
   /** `requireAuth()` plus a role check. */
   requireRole(...roles: [UserRole, ...UserRole[]]): RequestHandler {
     const allowed = new Set<UserRole>(roles);
     return async (req, _res, next) => {
       const user = await this.authenticate(req);
-      if (!allowed.has(user.role)) throw new ForbiddenError();
+      if (user.role === null || !allowed.has(user.role)) throw new ForbiddenError();
       next();
     };
   }
@@ -50,9 +63,9 @@ export class AuthGuards {
     if (token === undefined) {
       throw new UnauthenticatedError('The access token is invalid.', { invalidToken: true });
     }
+    let verified: AuthUser;
     try {
-      req.user = await this.verifier.verify(token);
-      return req.user;
+      verified = await this.verifier.verify(token);
     } catch (error) {
       if (error instanceof InvalidAccessTokenError) {
         throw new UnauthenticatedError(
@@ -64,5 +77,18 @@ export class AuthGuards {
       }
       throw error;
     }
+    if (this.loadActor === undefined) {
+      req.user = verified;
+      return verified;
+    }
+    const actor = await this.loadActor(verified.id);
+    if (actor === null) {
+      throw new UnauthenticatedError('The access token is invalid.', { invalidToken: true });
+    }
+    if (actor.status === 'suspended') {
+      throw new ForbiddenError('This account is suspended.', { slug: 'account-suspended' });
+    }
+    req.user = { id: verified.id, role: actor.role };
+    return req.user;
   }
 }

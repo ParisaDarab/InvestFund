@@ -100,6 +100,17 @@ export default tseslint.config(
     },
   },
   {
+    // HTTP integration tests read Supertest response bodies (`any` by design) field by field; the
+    // assertions themselves are the type check. Production code keeps the strict rules.
+    files: ['apps/api/src/modules/__tests__/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+    },
+  },
+  {
     // Plain JavaScript files (config files, scripts) are not part of a TS project.
     files: ['**/*.{js,mjs,cjs}'],
     ...tseslint.configs.disableTypeChecked,

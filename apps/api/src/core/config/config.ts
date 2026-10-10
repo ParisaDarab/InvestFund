@@ -154,11 +154,40 @@ export const EnvSchema = z
     MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(1024).default(25),
     /** Rate-limit counter store. `memory` is for tests and single-process development only. */
     RATE_LIMIT_STORE: z.enum(RATE_LIMIT_STORES).default('postgres'),
+    /** Signs the short-lived OAuth state cookie. Required at boot. */
+    JWT_REFRESH_SECRET: z.string().min(1),
+    /** Refresh-session lifetime in days. */
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+    /** Google OAuth client. Sign-in answers 503 until both are set. */
+    GOOGLE_CLIENT_ID: z.string().trim().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().trim().min(1).optional(),
+    /** Must be registered in the Google console: `<API origin>/api/v1/auth/google/callback`. */
+    GOOGLE_REDIRECT_URI: z.url({ protocol: /^https?$/ }).optional(),
+    GOOGLE_AUTH_BASE_URL: z.url({ protocol: /^https?$/ }).default('https://accounts.google.com'),
+    GOOGLE_OAUTH2_BASE_URL: z
+      .url({ protocol: /^https?$/ })
+      .default('https://oauth2.googleapis.com'),
+    GOOGLE_API_BASE_URL: z.url({ protocol: /^https?$/ }).default('https://www.googleapis.com'),
+    /** Transactional email: `smtp` delivers, `log` records without sending, `disabled` skips. */
+    EMAIL_DELIVERY: z.enum(['smtp', 'log', 'disabled']).default('log'),
+    SMTP_HOST: host.optional(),
+    SMTP_PORT: port.default(1025),
+    SMTP_SECURE: booleanFlag.default(false),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_FROM: z.string().trim().min(3).default('InvestFund <no-reply@investfund.local>'),
+    /** Run the email outbox dispatcher in this process. */
+    EMAIL_DISPATCHER_ENABLED: booleanFlag.default(true),
+    /** Real-time fan-out: `postgres` (LISTEN/NOTIFY, multi-instance) or `memory` (one process). */
+    REALTIME_BUS: z.enum(['postgres', 'memory']).default('postgres'),
   })
   .superRefine((env, ctx) => {
     if (env.ENCRYPTION_PREVIOUS_KEYS?.has(env.ENCRYPTION_KEY_VERSION) === true) {
       // The current version must not also appear as a previous key.
       ctx.addIssue({ code: 'custom', path: ['ENCRYPTION_PREVIOUS_KEYS'], message: 'invalid' });
+    }
+    if (env.EMAIL_DELIVERY === 'smtp' && env.SMTP_HOST === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'required' });
     }
     if (env.NODE_ENV !== 'production') return;
     for (const name of ['JWT_ACCESS_SECRET', 'IP_HASH_SECRET'] as const) {
@@ -176,6 +205,12 @@ export const EnvSchema = z
     }
     if (env.WEB_URL === undefined) {
       ctx.addIssue({ code: 'custom', path: ['WEB_URL'], message: 'required' });
+    }
+    if (
+      env.JWT_REFRESH_SECRET.length < MIN_PRODUCTION_SECRET_LENGTH ||
+      PLACEHOLDER_SECRETS.has(env.JWT_REFRESH_SECRET.toLowerCase())
+    ) {
+      ctx.addIssue({ code: 'custom', path: ['JWT_REFRESH_SECRET'], message: 'weak' });
     }
     if (env.RATE_LIMIT_STORE === 'memory') {
       // Counters must be shared by every API process in production.
@@ -210,6 +245,34 @@ export interface AppConfig {
   };
   readonly storage: { readonly dir: string; readonly maxUploadBytes: number };
   readonly rateLimit: { readonly store: (typeof RATE_LIMIT_STORES)[number] };
+  readonly session: { readonly stateSecret: string; readonly refreshTtlDays: number };
+  /** `null` when Google sign-in is not configured. */
+  readonly google: GoogleConfig | null;
+  readonly webOrigin: string;
+  readonly email: EmailConfig;
+  readonly realtime: { readonly bus: 'postgres' | 'memory' };
+}
+
+export interface GoogleConfig {
+  readonly clientId: string;
+  readonly clientSecret: string;
+  readonly redirectUri: string;
+  readonly authBaseUrl: string;
+  readonly oauth2BaseUrl: string;
+  readonly apiBaseUrl: string;
+}
+
+export interface EmailConfig {
+  readonly delivery: 'smtp' | 'log' | 'disabled';
+  readonly dispatcherEnabled: boolean;
+  readonly from: string;
+  readonly smtp: {
+    readonly host: string;
+    readonly port: number;
+    readonly secure: boolean;
+    readonly user: string | undefined;
+    readonly password: string | undefined;
+  } | null;
 }
 
 /** Default `WEB_URL` outside production (the Next.js dev server). */
@@ -288,5 +351,36 @@ export function loadConfig(source: RawEnv = process.env): AppConfig {
     },
     storage: { dir: resolve(env.STORAGE_DIR), maxUploadBytes: env.MAX_UPLOAD_MB * 1024 * 1024 },
     rateLimit: { store: env.RATE_LIMIT_STORE },
+    session: { stateSecret: env.JWT_REFRESH_SECRET, refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS },
+    google:
+      env.GOOGLE_CLIENT_ID !== undefined &&
+      env.GOOGLE_CLIENT_SECRET !== undefined &&
+      env.GOOGLE_REDIRECT_URI !== undefined
+        ? {
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+            redirectUri: env.GOOGLE_REDIRECT_URI,
+            authBaseUrl: env.GOOGLE_AUTH_BASE_URL.replace(/\/+$/, ''),
+            oauth2BaseUrl: env.GOOGLE_OAUTH2_BASE_URL.replace(/\/+$/, ''),
+            apiBaseUrl: env.GOOGLE_API_BASE_URL.replace(/\/+$/, ''),
+          }
+        : null,
+    webOrigin: env.WEB_URL ?? DEFAULT_WEB_ORIGIN,
+    email: {
+      delivery: env.EMAIL_DELIVERY,
+      dispatcherEnabled: env.EMAIL_DISPATCHER_ENABLED,
+      from: env.SMTP_FROM,
+      smtp:
+        env.SMTP_HOST === undefined
+          ? null
+          : {
+              host: env.SMTP_HOST,
+              port: env.SMTP_PORT,
+              secure: env.SMTP_SECURE,
+              user: env.SMTP_USER === '' ? undefined : env.SMTP_USER,
+              password: env.SMTP_PASSWORD === '' ? undefined : env.SMTP_PASSWORD,
+            },
+    },
+    realtime: { bus: env.REALTIME_BUS },
   };
 }

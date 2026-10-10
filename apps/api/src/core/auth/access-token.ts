@@ -7,7 +7,7 @@
  * allowed), and the claims parse as `{ sub: UUID, role: UserRole }`. Any failure is reported as
  * one generic error; the token itself is never logged or echoed.
  */
-import { errors as joseErrors, jwtVerify } from 'jose';
+import { SignJWT, errors as joseErrors, jwtVerify } from 'jose';
 import { z } from 'zod';
 
 import { USER_ROLES } from '@investfund/shared';
@@ -22,8 +22,40 @@ export const ACCESS_TOKEN_CLOCK_TOLERANCE_SECONDS = 5;
 
 const AccessTokenClaims = z.object({
   sub: z.uuid(),
-  role: z.enum(USER_ROLES),
+  role: z.enum(USER_ROLES).nullable(),
 });
+
+/** Access-token lifetime: 15 minutes (ADR 0001). */
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+
+/** Signs access tokens with the same algorithm, issuer and audience the verifier expects. */
+export class JwtAccessTokenIssuer {
+  readonly #key: Uint8Array;
+
+  constructor(
+    secret: string,
+    private readonly ttlSeconds = ACCESS_TOKEN_TTL_SECONDS,
+  ) {
+    if (secret.length === 0) throw new Error('JWT_ACCESS_SECRET must not be empty');
+    this.#key = new TextEncoder().encode(secret);
+  }
+
+  get expiresIn(): number {
+    return this.ttlSeconds;
+  }
+
+  async issue(user: AuthUser): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    return new SignJWT({ role: user.role })
+      .setProtectedHeader({ alg: ACCESS_TOKEN_ALGORITHM, typ: 'JWT' })
+      .setSubject(user.id)
+      .setIssuer(ACCESS_TOKEN_ISSUER)
+      .setAudience(ACCESS_TOKEN_AUDIENCE)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.ttlSeconds)
+      .sign(this.#key);
+  }
+}
 
 /** The token is missing a valid signature, has expired, or has unexpected claims. */
 export class InvalidAccessTokenError extends Error {

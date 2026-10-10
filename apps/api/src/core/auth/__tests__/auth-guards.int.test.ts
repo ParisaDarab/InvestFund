@@ -29,7 +29,7 @@ function testApp() {
       router.get(
         '/stacked',
         authGuards.requireAuth(),
-        authGuards.requireRole('founder', 'investor'),
+        authGuards.requireRole('founder', 'supporter'),
         (req, res) => {
           res.json({ user: req.user });
         },
@@ -170,9 +170,9 @@ describe('rejected tokens', () => {
 
 describe('requireAuth()', () => {
   it('allows any role and stacks with requireRole without re-verifying', async () => {
-    const token = await signTestToken({ role: 'investor', sub: USER_ID });
+    const token = await signTestToken({ role: 'supporter', sub: USER_ID });
     expect((await call('/any', `Bearer ${token}`)).res.body).toEqual({
-      user: { id: USER_ID, role: 'investor' },
+      user: { id: USER_ID, role: 'supporter' },
     });
     expect((await call('/stacked', `Bearer ${token}`)).res.status).toBe(200);
     const admin = await signTestToken({ role: 'admin' });
