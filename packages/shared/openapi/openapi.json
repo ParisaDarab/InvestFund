@@ -1,0 +1,389 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "InvestFund API",
+    "version": "0.1.0",
+    "description": "Generated from the Zod schemas in `@investfund/shared`. Do not edit by hand."
+  },
+  "tags": [
+    {
+      "name": "system",
+      "description": "Health and API metadata"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "AcceptedMessage": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "HealthCheck": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "db"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ]
+      },
+      "HealthLive": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "HealthReport": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HealthCheck"
+            }
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "description": "Readiness of the API and its dependencies. Public, so deliberately minimal."
+      },
+      "HealthStatus": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "fail"
+        ]
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID (the API issues v7).",
+            "example": "01928c4e-7d3a-7b2c-9f1e-3a4b5c6d7e8f"
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Job type (DATABASE.md `JobType`). Narrowed to an enum by the jobs contract.",
+            "example": "document_extraction"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Completion percentage, 0-100."
+          },
+          "result": {
+            "$ref": "#/components/schemas/JobResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/JobError"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 date-time in UTC (`Z` designator).",
+            "example": "2026-10-08T09:30:00Z"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "`null` until the job finishes.",
+            "example": "2026-10-08T09:30:00Z"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "progress",
+          "createdAt",
+          "finishedAt"
+        ]
+      },
+      "JobAccepted": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID (the API issues v7).",
+            "example": "01928c4e-7d3a-7b2c-9f1e-3a4b5c6d7e8f"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "jobId",
+          "status"
+        ],
+        "description": "A background job was accepted."
+      },
+      "JobError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "JobResult": {
+        "type": "object",
+        "properties": {
+          "resourceType": {
+            "type": "string",
+            "minLength": 1,
+            "example": "document_extraction"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID (the API issues v7).",
+            "example": "01928c4e-7d3a-7b2c-9f1e-3a4b5c6d7e8f"
+          }
+        },
+        "required": [
+          "resourceType",
+          "resourceId"
+        ]
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "amountMinor": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d*)$",
+            "description": "Amount in minor units (pence) as a digit string.",
+            "example": "2500000"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP"
+            ],
+            "description": "ISO 4217 currency code."
+          }
+        },
+        "required": [
+          "amountMinor",
+          "currency"
+        ],
+        "additionalProperties": false,
+        "description": "Monetary amount in minor units. Never use floating-point arithmetic on it."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "description": "Problem type URI: `https://investfund.local/problems/<slug>` (see `PROBLEM_TYPE_STATUS`).",
+            "example": "https://investfund.local/problems/validation-error"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, human-readable summary of the problem type."
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599,
+            "description": "HTTP status code."
+          },
+          "detail": {
+            "type": "string",
+            "description": "Explanation specific to this occurrence."
+          },
+          "instance": {
+            "type": "string",
+            "description": "URI reference of this occurrence."
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Value of the `X-Request-Id` response header, for support."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemFieldError"
+            },
+            "description": "Field-level errors (validation and business-rule problems)."
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "requestId"
+        ],
+        "description": "RFC 9457 problem details with a request ID."
+      },
+      "ProblemFieldError": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Location of the offending value, dot-separated (for example `body.email`)."
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable reason (for example `too_small`)."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable explanation, safe to display."
+          }
+        },
+        "required": [
+          "path",
+          "code",
+          "message"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "summary": "This OpenAPI 3.1 document",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "OpenAPI document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "getHealthLive",
+        "summary": "Liveness: the process is up",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthLive"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getHealthReady",
+        "summary": "Readiness: database, Redis and storage are reachable",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReport"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "At least one check failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

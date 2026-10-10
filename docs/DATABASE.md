@@ -296,6 +296,19 @@ Metadata for every object held by the `StorageProvider`.
 Keys and indexes: `UNIQUE(storage_key)`; `INDEX(uploaded_by)`.
 PII: personal (filenames, content may contain personal data) · Retention: follows the owning row (document, attachment, export).
 
+#### `rate_limit_buckets` (P0, infrastructure)
+Fixed-window rate-limit counters for `core/rateLimit` (API.md §3). Postgres-backed in R0–R1 (human decision 2026-10-09); replaced by Redis in R2. One row per preset and subject, updated in place by an atomic `INSERT ... ON CONFLICT (preset, key_hash) DO UPDATE ... RETURNING`.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| preset | varchar(32) | no | | `auth`, `upload`, `ai`, `sensitive`, `default` (validated in code, not a DB enum: presets are configuration) |
+| key_hash | char(64) | no | | HMAC-SHA-256 hex (`IP_HASH_SECRET`) of `ip:<addr>` or `user:<id>`; raw IPs are never stored |
+| hits | integer | no | | Hits in the current window |
+| window_ends_at | timestamptz | no | | Database time; the next hit after it restarts the window at 1 |
+
+Keys and indexes: `UNIQUE(preset, key_hash)`; `INDEX(window_ends_at)` (cleanup).
+PII: none (keyed hashes only) · Retention: rows past `window_ends_at` are deleted in batches of 1000 by `deleteExpired()`, run opportunistically every 1000 hits per API process.
+
 #### `job_runs` (P2)
 Durable record of each background job. Its `id` is also the BullMQ job ID. Backs `GET /jobs/{id}`.
 
@@ -1180,7 +1193,7 @@ Retention jobs (`retention_sweep`, daily, P10) apply the per-table rules above. 
 
 | Phase | Migration (additive unless noted) | Backfill / seed |
 |---|---|---|
-| P0 | `init_extensions`: `CREATE EXTENSION vector, citext` | none |
+| P0 | `init_extensions`: `CREATE EXTENSION vector, citext`; `rate_limit_buckets` (P0-API-02) | none |
 | P1 | identity tables (6) and the `audit_logs` immutability trigger | Seed admin user through a CLI command (password from env, never committed) |
 | P2 | files, jobs, startup aggregate (13), `llm_settings`, `llm_usage` | `llm_settings.default` row from env bootstrap |
 | P3 | investor aggregate (6), investor FK on `invitations` | none |

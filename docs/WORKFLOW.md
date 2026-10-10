@@ -10,18 +10,20 @@
 | Frontend | `.claude/agents/frontend.md` | Implements the UI and API integration |
 | Tester | `.claude/agents/tester.md` | Tests, sandbox simulation, reports |
 
-## Lifecycle of a phase
+## Lifecycle of a release (lean, session-sized; adopted 2026-10-09)
 
-1. **Plan.** The orchestrator asks the supervisor for the phase plan, schema and API delta, and the task cards. → **Gate A**: the human approves or requests changes.
-2. **Branch.** `feature/p<N>-<slug>` from `main`.
-3. **Build.** For each task card, in dependency order:
-   1. Contract card (Backend) → supervisor review
-   2. Backend and Frontend cards (in parallel when independent)
-   3. Tester writes and runs tests and produces a report
-   4. Supervisor standards review (PASS / CHANGES)
-   5. **Gate B**: the human approves the commit. The orchestrator commits.
-4. **Publish.** **Gate C**: the human approves the push and PR. The orchestrator pushes and opens the PR. The human reviews and merges (or asks the orchestrator to merge).
-5. **Close phase.** The tester runs the phase-level E2E, non-functional tests and sandbox simulation → `docs/test-reports/phase-N.md`. → **Gate D**: the human signs off and the next phase starts.
+The plan is a set of **releases** (R0, R1, …), each made of numbered **sessions** (`docs/PHASE_PLAN.md`). A session must finish before the Claude usage limit, so it covers 1–2 small task cards.
+
+1. **Plan (release start).** The supervisor writes the release's session list, schema and API delta, and task cards. → **Gate A**.
+2. **Branch.** `feature/r<N>-<slug>` from `main` (R0 continues on `feature/p0-foundations`).
+3. **Each session:**
+   1. ONE specialist agent implements the card together with its unit and integration tests. Contract changes go in the same card.
+   2. The orchestrator runs lint, typecheck, tests and build, and checks the acceptance criteria against the card.
+   3. **Gate B**: the human approves the commit. The orchestrator commits.
+   4. If the budget runs short, stop at a green point and record what remains in the card.
+4. **Close release.** The tester runs E2E and non-functional tests → `docs/test-reports/r<N>.md`. The supervisor reviews the release diff against the standards. → **Gate C** (push/PR), then **Gate D** (sign-off).
+
+The previous per-card flow (supervisor review plus tester on every card) is retired. See `docs/archive/PHASE_PLAN_v1.md` for the original plan.
 
 Gate X (special approvals) can happen at any point. See skill `human-approval-gate`.
 

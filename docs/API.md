@@ -68,9 +68,10 @@ Suspended users get `401` on refresh and `403 account-suspended` on any request 
 | 422 | `quota-exceeded` | Monthly AI quota used up |
 | 424 | `integration-required` | Gmail or Calendar not connected or revoked |
 | 429 | `rate-limited` | Rate limit hit |
-| 503 | `dependency-unavailable` | LLM or Google circuit open |
+| 500 | `internal-error` | Unexpected server error. Title `Internal server error`, generic `detail`, never a stack or internal message (the stack is logged with the request ID only). Never thrown as a `DomainError`; the central handler uses it for any unrecognised error (review decision 2026-10-09, replaces `about:blank`) |
+| 503 | `dependency-unavailable` | A database, queue, LLM or Google dependency is unreachable or its circuit is open |
 
-## 3. Rate-limit presets (`core/rateLimit`, Redis-backed)
+## 3. Rate-limit presets (`core/rateLimit`; Postgres-backed in R0–R1, Redis from R2)
 
 | Preset | Limit | Applied to |
 |---|---|---|
@@ -131,6 +132,12 @@ Rules:
 | GET | `/health/ready` | DB, Redis and storage reachable | public (minimal body) | `200 HealthReport` / `503 HealthReport` | none | NFR-OBS-01 |
 | GET | `/metrics` | Prometheus metrics | internal network only (not routed publicly) | text/plain | none | NFR-OBS-01 |
 | GET | `/api/v1/openapi.json` | Generated OpenAPI 3.1 | public in local/sandbox; admin in production | JSON | default | NFR-MAINT-01 |
+
+`openapi.json` exposure (review decision 2026-10-09):
+- `OPENAPI_PUBLIC=true` serves it without auth. Only local and the sandbox compose stack set it (the sandbox runs with `NODE_ENV=production`, so the flag, not `NODE_ENV`, decides). It must never be set in a real deployment.
+- Otherwise, outside production it is public by default (P0-API-01 behaviour).
+- Otherwise, in production it is served behind `requireAuth()` + `requireRole('admin')` (added by P0-API-02). Until P0-API-02 lands it is simply not mounted (404), which fails closed.
+- When `NODE_ENV=production` and `OPENAPI_PUBLIC=true`, the API logs one `warn` line at start-up (no values).
 
 ## 6. Phase 1 endpoints (full detail)
 

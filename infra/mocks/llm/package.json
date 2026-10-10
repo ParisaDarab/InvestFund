@@ -1,0 +1,25 @@
+{
+  "name": "@investfund/mock-llm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic, fixture-driven OpenAI-compatible mock server for tests and the sandbox (P0-MOCK-01).",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/supertest": "7.2.1",
+    "supertest": "7.2.2",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
+  }
+}

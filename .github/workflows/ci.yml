@@ -1,0 +1,204 @@
+# InvestFund CI (P0-CI-01). Runs the same commands developers run locally.
+#
+# Security: read-only token, no secrets, every third-party action pinned to a full commit SHA
+# (the comment names the release). Database credentials below are throwaway values for a
+# disposable service container that only exists for the duration of the job.
+#
+# Required status checks for branch protection on `main`: lint, test, build, audit.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  # One run per workflow and ref; a newer push cancels the superseded run. Runs on `main` are
+  # never cancelled so every merge commit gets a complete result.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  PRISMA_HIDE_UPDATE_MESSAGE: '1'
+  # Public, non-secret build-time value required by apps/web (src/lib/env.ts).
+  NEXT_PUBLIC_API_URL: http://localhost:4000
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      # A fresh checkout has no .next/types; without them `next/root-params` is untyped and
+      # ESLint's no-unsafe-* rules fail in apps/web/src/i18n/request.ts.
+      - name: Generate Next.js route types
+        id: typegen
+        run: pnpm --filter @investfund/web exec next typegen
+
+      - name: Lint
+        if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+        run: pnpm lint
+
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+        run: pnpm typecheck
+
+      - name: Format check
+        if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+        run: pnpm format:check
+
+      - name: Line-ending check
+        if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+        run: pnpm check:eol
+
+  test:
+    name: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        # Same image as infra/docker-compose.yml. The extensions come from the first migration.
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_USER: investfund
+          POSTGRES_PASSWORD: investfund
+          POSTGRES_DB: investfund
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U investfund -d investfund"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+          --health-start-period 10s
+    env:
+      # Throwaway credentials for the service container above (not secrets). Integration suites
+      # create and drop their own migrated databases on this server (packages/test-utils/src/db.ts).
+      DATABASE_URL: postgresql://investfund:investfund@localhost:5432/investfund
+      TEST_DATABASE_URL: postgresql://investfund:investfund@localhost:5432/investfund
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Apply migrations to a fresh database
+        run: pnpm --filter @investfund/api exec prisma migrate deploy
+
+      - name: Unit and integration tests
+        run: >-
+          pnpm test
+          --reporter=default
+          --reporter=github-actions
+          --reporter=json
+          --outputFile.json=vitest-results.json
+
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            if (!fs.existsSync("vitest-results.json")) {
+              console.log("### Tests\n\nNo results file (the test run did not start).");
+              process.exit(0);
+            }
+            const r = JSON.parse(fs.readFileSync("vitest-results.json", "utf8"));
+            const files = r.testResults.length;
+            const failedFiles = r.testResults.filter((f) => f.status === "failed").length;
+            console.log([
+              "### Tests " + (r.success ? "passed" : "FAILED"),
+              "",
+              "| | Total | Passed | Failed | Todo/skipped |",
+              "|---|---|---|---|---|",
+              `| Files | ${files} | ${files - failedFiles} | ${failedFiles} | |`,
+              `| Tests | ${r.numTotalTests} | ${r.numPassedTests} | ${r.numFailedTests} | ${r.numTodoTests + r.numPendingTests} |`,
+            ].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Regenerate OpenAPI document
+        run: pnpm --filter @investfund/shared openapi:generate
+
+      - name: Check committed openapi.json is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- packages/shared/openapi)" ]; then
+            git --no-pager diff --stat -- packages/shared/openapi
+            msg="packages/shared/openapi/openapi.json is out of date. Run 'pnpm --filter @investfund/shared openapi:generate' and commit the result."
+            echo "::error file=packages/shared/openapi/openapi.json::${msg}"
+            {
+              echo "### OpenAPI document out of date"
+              echo ""
+              echo "${msg}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "### OpenAPI document up to date" >> "$GITHUB_STEP_SUMMARY"
+
+  audit:
+    name: audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # pnpm audit reads the lockfile only: no install and no store cache (setup-node's cache
+      # step would fail on a store directory that was never created).
+      - name: Install pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Audit dependencies (fails on high or critical)
+        run: |
+          set -o pipefail
+          status=0
+          pnpm audit --audit-level high | tee audit.txt || status=$?
+          {
+            if [ "$status" -eq 0 ]; then
+              echo "### Dependency audit passed (no high or critical advisories)"
+            else
+              echo "### Dependency audit FAILED (high or critical advisories)"
+              echo ""
+              echo '```'
+              tail -n 40 audit.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

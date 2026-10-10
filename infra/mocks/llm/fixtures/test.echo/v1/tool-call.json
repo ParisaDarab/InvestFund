@@ -1,0 +1,16 @@
+{
+  "description": "Tool-call answer for test.echo v1 with vars { text: 'tool' }.",
+  "vars": {
+    "text": "tool"
+  },
+  "response": {
+    "toolCalls": [
+      {
+        "name": "echo",
+        "arguments": {
+          "text": "tool"
+        }
+      }
+    ]
+  }
+}

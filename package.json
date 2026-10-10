@@ -1,0 +1,37 @@
+{
+  "name": "investfund",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.10.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --if-present run dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm -r --if-present run typecheck",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @investfund/api db:generate",
+    "db:migrate": "pnpm --filter @investfund/api db:migrate",
+    "db:studio": "pnpm --filter @investfund/api db:studio",
+    "seed": "pnpm --filter @investfund/api seed",
+    "check:eol": "node scripts/check-eol.mjs",
+    "check:compose": "node infra/scripts/check-compose.mjs",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "infra:health": "node infra/scripts/compose-health.mjs"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-plugin-import": "2.32.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@investfund/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "API contracts (Zod schemas), constants and the OpenAPI generator shared by apps/api and apps/web.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi/index.d.ts",
+      "default": "./dist/openapi/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "openapi"
+  ],
+  "scripts": {
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+    "prepare": "pnpm run build",
+    "typecheck": "tsc --noEmit",
+    "openapi:generate": "pnpm run build && node scripts/generate-openapi.mjs"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "9.1.0",
+    "zod": "4.6.5"
+  }
+}

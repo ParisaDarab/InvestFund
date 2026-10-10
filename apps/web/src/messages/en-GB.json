@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "siteName": "InvestFund",
+    "description": "InvestFund matches UK startups with the investors most likely to back them."
+  },
+  "home": {
+    "metaTitle": "Fundraising for UK startups",
+    "title": "InvestFund",
+    "description": "The InvestFund website is being built. Check back soon.",
+    "signIn": "Sign in"
+  },
+  "login": {
+    "metaTitle": "Sign in",
+    "title": "Sign in",
+    "description": "Sign-in is coming soon.",
+    "backHome": "Back to the home page"
+  },
+  "app": {
+    "metaTitle": "Dashboard",
+    "title": "Dashboard",
+    "description": "Your workspace will appear here."
+  },
+  "errors": {
+    "notFound": {
+      "metaTitle": "Page not found",
+      "title": "Page not found",
+      "description": "We could not find the page you were looking for.",
+      "homeLink": "Go to the home page"
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again.",
+      "retry": "Try again"
+    }
+  },
+  "ui": {
+    "close": "Close",
+    "notifications": "Notifications ({hotkey})",
+    "themeToggle": {
+      "label": "Dark theme",
+      "switchToLight": "Switch to the light theme",
+      "switchToDark": "Switch to the dark theme"
+    }
+  },
+  "devApiStatus": {
+    "checking": "API: checking",
+    "ready": "API: ready",
+    "notReady": "API: not ready",
+    "unreachable": "API: unreachable",
+    "error": "API: unexpected response",
+    "host": "({host})"
+  },
+  "devUi": {
+    "metaTitle": "UI showcase",
+    "title": "UI showcase",
+    "description": "Internal page that shows the design tokens and base components in the active theme. It is not part of production builds.",
+    "sections": {
+      "typography": "Typography",
+      "colours": "Colour tokens",
+      "buttons": "Buttons",
+      "badges": "Badges and status pills",
+      "card": "Card",
+      "form": "Form fields",
+      "overlays": "Dialog, sheet and tooltip",
+      "tabs": "Tabs",
+      "toast": "Toast",
+      "skeleton": "Skeleton"
+    },
+    "typography": {
+      "display": "Raise your next round with <accent>clarity</accent>",
+      "h1": "Heading one",
+      "h2": "Heading two",
+      "h3": "Heading three",
+      "body": "Body copy is set in Inter at 16 pixels with a relaxed line height, so longer explanations stay easy to read in both themes.",
+      "meta": "Meta text for dates, hints and secondary details",
+      "numbers": "£1,250,000"
+    },
+    "buttons": {
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "outline": "Outline",
+      "ghost": "Ghost",
+      "destructive": "Delete",
+      "disabled": "Disabled",
+      "small": "Small",
+      "large": "Large",
+      "iconLabel": "Add item"
+    },
+    "badges": {
+      "default": "Default",
+      "primary": "New",
+      "outline": "Draft",
+      "neutral": "Not started",
+      "info": "In review",
+      "success": "Approved",
+      "warning": "Pending",
+      "danger": "Rejected"
+    },
+    "card": {
+      "title": "Seed round",
+      "description": "Target £750,000 · 12 investors matched",
+      "body": "Cards group related content on a raised surface with a 14 pixel radius and a 1 pixel border.",
+      "action": "View details"
+    },
+    "form": {
+      "nameLabel": "Company name",
+      "namePlaceholder": "Example Ltd",
+      "nameHint": "As registered at Companies House.",
+      "emailLabel": "Email",
+      "emailValue": "founder@",
+      "emailError": "Enter an email address in the correct format, like name@example.com",
+      "summaryLabel": "One-line summary",
+      "stageLabel": "Stage",
+      "stagePlaceholder": "Choose a stage",
+      "stages": {
+        "preSeed": "Pre-seed",
+        "seed": "Seed",
+        "seriesA": "Series A"
+      },
+      "termsLabel": "Investors may contact me about my company"
+    },
+    "overlays": {
+      "openDialog": "Open dialog",
+      "dialogTitle": "Discard this draft?",
+      "dialogDescription": "The draft will be deleted. Nothing has been sent.",
+      "cancel": "Keep draft",
+      "confirm": "Discard",
+      "openSheet": "Open sheet",
+      "sheetTitle": "Filters",
+      "sheetDescription": "Narrow down the list of matches.",
+      "tooltipTrigger": "Show tooltip",
+      "tooltipContent": "Tooltips give short, optional hints."
+    },
+    "tabs": {
+      "overview": "Overview",
+      "activity": "Activity",
+      "overviewBody": "The overview tab is selected by default.",
+      "activityBody": "Use the arrow keys to move between tabs."
+    },
+    "toast": {
+      "regionLabel": "Notification",
+      "show": "Show toast",
+      "title": "Draft saved",
+      "description": "Your changes have been saved.",
+      "action": "Undo",
+      "actionAltText": "Undo the last change"
+    },
+    "skeleton": {
+      "loading": "Loading example content"
+    }
+  }
+}
