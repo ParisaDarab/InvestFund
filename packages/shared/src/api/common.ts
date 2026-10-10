@@ -11,6 +11,8 @@
  */
 import { z } from 'zod';
 
+import { CURRENCIES } from '../domain/taxonomy.js';
+
 // ── Primitives ──────────────────────────────────────────────────────────────
 
 /** Resource identifier: a UUID string (the API issues UUID v7). */
@@ -41,8 +43,10 @@ export const MAX_AMOUNT_MINOR = 9_223_372_036_854_775_807n;
 
 const AMOUNT_MINOR_PATTERN = /^(0|[1-9]\d*)$/;
 
-/** Supported currencies. The MVP is UK-only. */
-export const Currency = z.literal('GBP').meta({ description: 'ISO 4217 currency code.' });
+/** Currencies amounts may be recorded in (GBP default). Stored explicitly with every amount. */
+export const Currency = z
+  .enum(CURRENCIES)
+  .meta({ id: 'Currency', description: 'ISO 4217 currency code. Never converted.' });
 export type Currency = z.infer<typeof Currency>;
 
 /**

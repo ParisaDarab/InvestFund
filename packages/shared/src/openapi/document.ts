@@ -12,9 +12,11 @@ import { AcceptedMessage, Job, JobAccepted, Money, ProblemDetails } from '../api
 import { HealthLive, HealthReport } from '../api/system.js';
 import { PROBLEM_CONTENT_TYPE } from '../constants/problem-types.js';
 
+import { registerMarketplacePaths } from './paths.js';
+
 export const OPENAPI_VERSION = '3.1.0';
 export const API_TITLE = 'InvestFund API';
-export const API_VERSION = '0.1.0';
+export const API_VERSION = '1.0.0';
 
 type OpenApiDocument = ReturnType<OpenApiGeneratorV31['generateDocument']>;
 export type { OpenApiDocument };
@@ -56,7 +58,7 @@ export function createOpenApiRegistry(): OpenAPIRegistry {
     method: 'get',
     path: '/health/ready',
     operationId: 'getHealthReady',
-    summary: 'Readiness: database, Redis and storage are reachable',
+    summary: 'Readiness: database and storage are reachable',
     tags: ['system'],
     responses: {
       200: { description: 'Ready', content: { 'application/json': { schema: HealthReport } } },
@@ -82,6 +84,7 @@ export function createOpenApiRegistry(): OpenAPIRegistry {
     },
   });
 
+  registerMarketplacePaths(registry);
   return registry;
 }
 
@@ -99,7 +102,19 @@ export function buildOpenApiDocument(): OpenApiDocument {
       version: API_VERSION,
       description: 'Generated from the Zod schemas in `@investfund/shared`. Do not edit by hand.',
     },
-    tags: [{ name: 'system', description: 'Health and API metadata' }],
+    tags: [
+      { name: 'system', description: 'Health and API metadata' },
+      { name: 'auth', description: 'Google sign-in and sessions' },
+      { name: 'account', description: 'Current user, onboarding and profiles' },
+      { name: 'startups', description: 'Startups, discovery and recommendations' },
+      { name: 'connections', description: 'Connection requests' },
+      { name: 'conversations', description: 'Private messaging and real time' },
+      { name: 'deals', description: 'Grant and donation offers and outcomes' },
+      { name: 'notifications', description: 'In-app notifications' },
+      { name: 'documents', description: 'Confidential documents' },
+      { name: 'moderation', description: 'Blocking and reporting' },
+      { name: 'admin', description: 'Administration' },
+    ],
   });
   return {
     ...document,

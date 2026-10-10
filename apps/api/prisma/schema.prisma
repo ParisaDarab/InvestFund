@@ -5,7 +5,10 @@
 // timestamptz. The `vector` (pgvector) and `citext` extensions are enabled by the first
 // migration (`init_extensions`); vector columns use `Unsupported("vector(n)")` from P4.
 //
-// Domain models start in P1. Infrastructure tables live here too (`rate_limit_buckets`, P0-API-02).
+// Domain model: docs/DATABASE.md (grants-and-donations marketplace, ADR 0002). Money is stored as
+// BIGINT minor units next to an explicit ISO 4217 `currency`; never as floating point.
+// Partial unique indexes (one active connection per startup/supporter pair, one open
+// negotiation per connection) are created in SQL by the migration because Prisma cannot model them.
 
 generator client {
   provider      = "prisma-client-js"
@@ -38,4 +41,570 @@ model RateLimitBucket {
   @@unique([preset, keyHash])
   @@index([windowEndsAt])
   @@map("rate_limit_buckets")
+}
+
+// ── Identity ────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  founder
+  supporter
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+}
+
+/// A person who signed in with Google. `role` is null until onboarding (role selection).
+model User {
+  id                 String     @id @db.Uuid
+  /// Verified Google email: evidence of email control only, not identity verification.
+  email              String     @unique @db.Citext
+  googleSub          String     @unique @map("google_sub") @db.VarChar(255)
+  name               String     @db.VarChar(120)
+  avatarUrl          String?    @map("avatar_url") @db.VarChar(1024)
+  role               UserRole?
+  status             UserStatus @default(active)
+  emailNotifications Boolean    @default(true) @map("email_notifications")
+  onboardedAt        DateTime?  @map("onboarded_at") @db.Timestamptz(6)
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions             Session[]
+  founderProfile       FounderProfile?
+  supporterProfile     SupporterProfile?
+  startups             Startup[]
+  savedStartups        SavedStartup[]
+  connectionsAsSupport Connection[]              @relation("ConnectionSupporter")
+  connectionsAsFounder Connection[]              @relation("ConnectionFounder")
+  participations       ConversationParticipant[]
+  messages             Message[]
+  dealsAsSupporter     Deal[]                    @relation("DealSupporter")
+  dealsAsFounder       Deal[]                    @relation("DealFounder")
+  offersCreated        Offer[]                   @relation("OfferCreator")
+  notifications        Notification[]
+  blocksMade           UserBlock[]               @relation("Blocker")
+  blocksReceived       UserBlock[]               @relation("Blocked")
+  reportsMade          Report[]                  @relation("Reporter")
+  reportsAgainst       Report[]                  @relation("ReportTargetUser")
+  documentsUploaded    StartupDocument[]
+  documentGrants       DocumentGrant[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+/// A refresh-token session. Only the SHA-256 of the token is stored. Rotation replaces the
+/// token in place; presenting a superseded token revokes the whole family (reuse detection).
+model Session {
+  id           String    @id @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  familyId     String    @map("family_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash") @db.Char(64)
+  previousHash String?   @map("previous_hash") @db.Char(64)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  rotatedAt    DateTime? @map("rotated_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([previousHash])
+  @@map("sessions")
+}
+
+// ── Profiles ────────────────────────────────────────────────────────────────
+
+model FounderProfile {
+  userId      String   @id @map("user_id") @db.Uuid
+  displayName String   @map("display_name") @db.VarChar(80)
+  headline    String?  @db.VarChar(120)
+  bio         String?  @db.VarChar(2000)
+  country     String?  @db.Char(2)
+  linkedinUrl String?  @map("linkedin_url") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("founder_profiles")
+}
+
+/// Supporter profile and matching preferences (consolidates SupporterPreference).
+model SupporterProfile {
+  userId          String   @id @map("user_id") @db.Uuid
+  displayName     String   @map("display_name") @db.VarChar(80)
+  bio             String?  @db.VarChar(2000)
+  sectors         String[] @db.VarChar(40)
+  stages          String[] @db.VarChar(40)
+  purposes        String[] @db.VarChar(40)
+  /// ISO 3166-1 alpha-2 codes. Empty means "anywhere".
+  countries       String[] @db.Char(2)
+  fundingMinMinor BigInt?  @map("funding_min_minor")
+  fundingMaxMinor BigInt?  @map("funding_max_minor")
+  currency        String   @default("GBP") @db.Char(3)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("supporter_profiles")
+}
+
+// ── Startups ────────────────────────────────────────────────────────────────
+
+enum StartupStatus {
+  draft
+  published
+  archived
+}
+
+model Startup {
+  id                 String        @id @db.Uuid
+  founderId          String        @map("founder_id") @db.Uuid
+  slug               String        @unique @db.VarChar(80)
+  name               String        @db.VarChar(80)
+  tagline            String?       @db.VarChar(140)
+  description        String?       @db.VarChar(5000)
+  problem            String?       @db.VarChar(2000)
+  solution           String?       @db.VarChar(2000)
+  sector             String?       @db.VarChar(40)
+  stage              String?       @db.VarChar(40)
+  country            String?       @db.Char(2)
+  targetMarket       String?       @map("target_market") @db.VarChar(200)
+  productDescription String?       @map("product_description") @db.VarChar(2000)
+  businessModel      String?       @map("business_model") @db.VarChar(1000)
+  teamDescription    String?       @map("team_description") @db.VarChar(2000)
+  websiteUrl         String?       @map("website_url") @db.VarChar(255)
+  fundingPurposes    String[]      @map("funding_purposes") @db.VarChar(40)
+  fundingPurposeText String?       @map("funding_purpose_text") @db.VarChar(2000)
+  currency           String        @default("GBP") @db.Char(3)
+  targetAmountMinor  BigInt?       @map("target_amount_minor")
+  minAmountMinor     BigInt?       @map("min_amount_minor")
+  maxAmountMinor     BigInt?       @map("max_amount_minor")
+  fundingDeadline    DateTime?     @map("funding_deadline") @db.Date
+  status             StartupStatus @default(draft)
+  /// Optimistic concurrency: incremented on every update.
+  version            Int           @default(1)
+  publishedAt        DateTime?     @map("published_at") @db.Timestamptz(6)
+  archivedAt         DateTime?     @map("archived_at") @db.Timestamptz(6)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  founder     User               @relation(fields: [founderId], references: [id], onDelete: Restrict)
+  milestones  StartupMilestone[]
+  savedBy     SavedStartup[]
+  connections Connection[]
+  deals       Deal[]
+  documents   StartupDocument[]
+  reports     Report[]
+
+  @@index([founderId])
+  @@index([status, publishedAt(sort: Desc), id])
+  @@index([status, sector])
+  @@map("startups")
+}
+
+model StartupMilestone {
+  id                String    @id @db.Uuid
+  startupId         String    @map("startup_id") @db.Uuid
+  position          Int
+  title             String    @db.VarChar(120)
+  description       String    @db.VarChar(2000)
+  targetAmountMinor BigInt    @map("target_amount_minor")
+  currency          String    @db.Char(3)
+  targetDate        DateTime? @map("target_date") @db.Date
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  startup Startup          @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  offers  OfferMilestone[]
+
+  @@index([startupId, position])
+  @@map("startup_milestones")
+}
+
+model SavedStartup {
+  userId    String   @map("user_id") @db.Uuid
+  startupId String   @map("startup_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startup Startup @relation(fields: [startupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, startupId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("saved_startups")
+}
+
+// ── Connections and conversations ──────────────────────────────────────────
+
+enum ConnectionStatus {
+  pending
+  accepted
+  declined
+  withdrawn
+}
+
+/// A supporter's request to connect with a startup's founder. Keyed by the (startup, supporter)
+/// pair whatever the direction, so reverse-direction duplicates cannot exist. At most one
+/// pending or accepted row per pair (partial unique index in the migration).
+model Connection {
+  id          String           @id @db.Uuid
+  startupId   String           @map("startup_id") @db.Uuid
+  supporterId String           @map("supporter_id") @db.Uuid
+  founderId   String           @map("founder_id") @db.Uuid
+  initiatorId String           @map("initiator_id") @db.Uuid
+  status      ConnectionStatus @default(pending)
+  message     String?          @db.VarChar(1000)
+  respondedAt DateTime?        @map("responded_at") @db.Timestamptz(6)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  startup      Startup         @relation(fields: [startupId], references: [id], onDelete: Restrict)
+  supporter    User            @relation("ConnectionSupporter", fields: [supporterId], references: [id], onDelete: Restrict)
+  founder      User            @relation("ConnectionFounder", fields: [founderId], references: [id], onDelete: Restrict)
+  conversation Conversation?
+  deals        Deal[]
+  grants       DocumentGrant[]
+
+  @@index([founderId, status, createdAt(sort: Desc)])
+  @@index([supporterId, status, createdAt(sort: Desc)])
+  @@index([startupId, supporterId])
+  @@map("connections")
+}
+
+/// Private conversation of an accepted connection (exactly one: unique `connection_id`).
+model Conversation {
+  id            String    @id @db.Uuid
+  connectionId  String    @unique @map("connection_id") @db.Uuid
+  lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  connection   Connection                @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId String    @map("conversation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// Messages created after this instant (and not sent by the user) are unread.
+  lastReadAt     DateTime? @map("last_read_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id              String   @id @db.Uuid
+  conversationId  String   @map("conversation_id") @db.Uuid
+  senderId        String   @map("sender_id") @db.Uuid
+  /// Client-generated idempotency key: a retried send returns the stored message.
+  clientMessageId String   @map("client_message_id") @db.Uuid
+  body            String   @db.VarChar(4000)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@unique([senderId, clientMessageId])
+  @@index([conversationId, createdAt(sort: Desc), id])
+  @@map("messages")
+}
+
+// ── Offers and deals ────────────────────────────────────────────────────────
+
+enum DealStatus {
+  negotiating
+  declined
+  withdrawn
+  expired
+  accepted
+  funding_reported
+  receipt_disputed
+  cancellation_requested
+  completed
+  cancelled
+}
+
+enum OfferStatus {
+  pending
+  countered
+  superseded
+  accepted
+  declined
+  withdrawn
+  expired
+}
+
+enum FundingType {
+  grant
+  donation
+}
+
+/// A negotiation between the two parties of a connection and, once an offer is accepted, the
+/// reported funding outcome. At most one `negotiating` deal per connection (partial unique index).
+model Deal {
+  id                        String      @id @db.Uuid
+  connectionId              String      @map("connection_id") @db.Uuid
+  startupId                 String      @map("startup_id") @db.Uuid
+  supporterId               String      @map("supporter_id") @db.Uuid
+  founderId                 String      @map("founder_id") @db.Uuid
+  status                    DealStatus  @default(negotiating)
+  /// The offer currently awaiting a response (null once the negotiation is closed).
+  currentOfferId            String?     @unique @map("current_offer_id") @db.Uuid
+  acceptedOfferId           String?     @unique @map("accepted_offer_id") @db.Uuid
+  version                   Int         @default(1)
+  cancellationRequestedById String?     @map("cancellation_requested_by_id") @db.Uuid
+  cancellationFromStatus    DealStatus? @map("cancellation_from_status")
+  cancellationReason        String?     @map("cancellation_reason") @db.VarChar(1000)
+  fundingReportedAt         DateTime?   @map("funding_reported_at") @db.Timestamptz(6)
+  receiptConfirmedAt        DateTime?   @map("receipt_confirmed_at") @db.Timestamptz(6)
+  completedAt               DateTime?   @map("completed_at") @db.Timestamptz(6)
+  cancelledAt               DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  createdAt                 DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  connection Connection  @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  startup    Startup     @relation(fields: [startupId], references: [id], onDelete: Restrict)
+  supporter  User        @relation("DealSupporter", fields: [supporterId], references: [id], onDelete: Restrict)
+  founder    User        @relation("DealFounder", fields: [founderId], references: [id], onDelete: Restrict)
+  offers     Offer[]     @relation("DealOffers")
+  events     DealEvent[]
+
+  @@index([supporterId, updatedAt(sort: Desc)])
+  @@index([founderId, updatedAt(sort: Desc)])
+  @@index([startupId, status])
+  @@index([connectionId])
+  @@map("deals")
+}
+
+/// One immutable revision of proposed terms. Only the status fields change after creation.
+model Offer {
+  id              String      @id @db.Uuid
+  dealId          String      @map("deal_id") @db.Uuid
+  revision        Int
+  previousOfferId String?     @unique @map("previous_offer_id") @db.Uuid
+  createdById     String      @map("created_by_id") @db.Uuid
+  recipientId     String      @map("recipient_id") @db.Uuid
+  fundingType     FundingType @map("funding_type")
+  amountMinor     BigInt      @map("amount_minor")
+  currency        String      @db.Char(3)
+  purpose         String      @db.VarChar(2000)
+  conditions      String?     @db.VarChar(4000)
+  message         String?     @db.VarChar(2000)
+  /// The recipient must respond before this instant, otherwise the offer expires.
+  respondBy       DateTime?   @map("respond_by") @db.Timestamptz(6)
+  status          OfferStatus @default(pending)
+  respondedById   String?     @map("responded_by_id") @db.Uuid
+  respondedAt     DateTime?   @map("responded_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  deal       Deal             @relation("DealOffers", fields: [dealId], references: [id], onDelete: Cascade)
+  previous   Offer?           @relation("OfferChain", fields: [previousOfferId], references: [id], onDelete: Restrict)
+  next       Offer?           @relation("OfferChain")
+  createdBy  User             @relation("OfferCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  milestones OfferMilestone[]
+
+  @@unique([dealId, revision])
+  @@index([status, respondBy])
+  @@map("offers")
+}
+
+model OfferMilestone {
+  offerId     String @map("offer_id") @db.Uuid
+  milestoneId String @map("milestone_id") @db.Uuid
+
+  offer     Offer            @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  milestone StartupMilestone @relation(fields: [milestoneId], references: [id], onDelete: Restrict)
+
+  @@id([offerId, milestoneId])
+  @@map("offer_milestones")
+}
+
+/// Append-only history of a deal: every offer and lifecycle action with its actor.
+model DealEvent {
+  id         String      @id @db.Uuid
+  dealId     String      @map("deal_id") @db.Uuid
+  actorId    String?     @map("actor_id") @db.Uuid
+  type       String      @db.VarChar(40)
+  fromStatus DealStatus? @map("from_status")
+  toStatus   DealStatus  @map("to_status")
+  offerId    String?     @map("offer_id") @db.Uuid
+  note       String?     @db.VarChar(1000)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
+  @@map("deal_events")
+}
+
+// ── Notifications and email ────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String    @db.VarChar(40)
+  /// Non-sensitive display data (names, ids); rendered by the client.
+  data      Json      @default("{}")
+  link      String    @db.VarChar(255)
+  /// Idempotency: a retried operation never creates a second notification.
+  dedupeKey String    @map("dedupe_key") @db.VarChar(200)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt(sort: Desc), id])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+enum EmailStatus {
+  pending
+  sent
+  failed
+  skipped
+}
+
+/// Transactional outbox: written in the same transaction as the event, delivered asynchronously.
+model EmailOutbox {
+  id            String      @id @db.Uuid
+  userId        String?     @map("user_id") @db.Uuid
+  toEmail       String      @map("to_email") @db.Citext
+  template      String      @db.VarChar(60)
+  data          Json        @default("{}")
+  dedupeKey     String      @unique @map("dedupe_key") @db.VarChar(200)
+  status        EmailStatus @default(pending)
+  attempts      Int         @default(0)
+  nextAttemptAt DateTime    @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lastError     String?     @map("last_error") @db.VarChar(300)
+  sentAt        DateTime?   @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt])
+  @@map("email_outbox")
+}
+
+// ── Documents ───────────────────────────────────────────────────────────────
+
+enum DocumentVisibility {
+  all_connections
+  selected
+}
+
+/// Metadata of a confidential startup document. The binary lives in private storage under an
+/// unpredictable key; downloads are authorised per request by the API.
+model StartupDocument {
+  id           String             @id @db.Uuid
+  startupId    String             @map("startup_id") @db.Uuid
+  uploadedById String             @map("uploaded_by_id") @db.Uuid
+  storageKey   String             @unique @map("storage_key") @db.VarChar(255)
+  fileName     String             @map("file_name") @db.VarChar(200)
+  contentType  String             @map("content_type") @db.VarChar(100)
+  sizeBytes    Int                @map("size_bytes")
+  sha256       String             @db.Char(64)
+  visibility   DocumentVisibility @default(all_connections)
+  deletedAt    DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  startup    Startup         @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  uploadedBy User            @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  grants     DocumentGrant[]
+
+  @@index([startupId, deletedAt])
+  @@map("startup_documents")
+}
+
+/// Explicit access for `selected` documents, per accepted connection.
+model DocumentGrant {
+  documentId   String   @map("document_id") @db.Uuid
+  connectionId String   @map("connection_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document   StartupDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  connection Connection      @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, connectionId])
+  @@map("document_grants")
+}
+
+// ── Moderation ──────────────────────────────────────────────────────────────
+
+model UserBlock {
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("user_blocks")
+}
+
+enum ReportStatus {
+  open
+  resolved
+  dismissed
+}
+
+model Report {
+  id              String       @id @db.Uuid
+  reporterId      String       @map("reporter_id") @db.Uuid
+  targetType      String       @map("target_type") @db.VarChar(20)
+  targetUserId    String?      @map("target_user_id") @db.Uuid
+  targetStartupId String?      @map("target_startup_id") @db.Uuid
+  category        String       @db.VarChar(40)
+  details         String?      @db.VarChar(2000)
+  status          ReportStatus @default(open)
+  action          String?      @db.VarChar(40)
+  resolutionNote  String?      @map("resolution_note") @db.VarChar(2000)
+  reviewedById    String?      @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime?    @map("reviewed_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  reporter      User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  targetUser    User?    @relation("ReportTargetUser", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetStartup Startup? @relation(fields: [targetStartupId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+/// Append-only audit trail for sensitive actions. Metadata never holds secrets or message text.
+model AuditEvent {
+  id         String   @id @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(60)
+  entityType String   @map("entity_type") @db.VarChar(40)
+  entityId   String?  @map("entity_id") @db.Uuid
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_events")
 }

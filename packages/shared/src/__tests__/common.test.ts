@@ -73,7 +73,8 @@ describe('Money', () => {
     ['leading zeros', { amountMinor: '007', currency: 'GBP' }],
     ['an empty string', { amountMinor: '', currency: 'GBP' }],
     ['more than BIGINT max', { amountMinor: '9223372036854775808', currency: 'GBP' }],
-    ['another currency', { amountMinor: '100', currency: 'USD' }],
+    ['an unsupported currency', { amountMinor: '100', currency: 'JPY' }],
+    ['a lower-case currency', { amountMinor: '100', currency: 'gbp' }],
     ['a missing currency', { amountMinor: '100' }],
     ['an unknown field', { amountMinor: '100', currency: 'GBP', note: 'x' }],
   ])('rejects %s', (_label, value) => {
