@@ -1,73 +1,92 @@
 # InvestFund architecture
 
-Status: **Draft v0.1**. The supervisor refines this in the planning step.
+Status: **Current (v2, ADR 0002/0003).** Modular monolith: one Express API, one Next.js web app,
+shared contracts and domain rules.
 
 ## System context
 
 ```mermaid
 flowchart LR
   F[Founder] --> WEB
-  I[Investor] --> WEB
+  S[Supporter] --> WEB
   A[Admin] --> WEB
-  WEB[Next.js web app] -- REST /api/v1 --> API[Express API]
-  API --> PG[(PostgreSQL + pgvector)]
-  API --> R[(Redis / BullMQ)]
-  W[Worker process] --> R
-  W --> PG
-  API --> FS[(Local file storage)]
-  W --> FS
-  W --> LLM[OpenAI-compatible LLM]
-  W --> G[Gmail API]
-  W --> C[Google Calendar API]
-  API --> G
-  API --> C
-  W --> MCP[MCP servers - future]
+  WEB[Next.js web app] -- REST /api/v1 + SSE --> API[Express API]
+  API -- OAuth 2.0 code + PKCE --> G[Google accounts / userinfo]
+  API --> PG[(PostgreSQL 16)]
+  API -- LISTEN/NOTIFY --> PG
+  API --> FS[(Private file storage)]
+  API -- SMTP via outbox --> M[Email provider]
 ```
 
 ## Monorepo
 
 ```
-apps/web           Next.js App Router, TypeScript, Tailwind, shadcn/ui, next-intl
-apps/api           Express HTTP server + BullMQ worker entry (same codebase, two entrypoints)
-packages/shared    Zod schemas (API contracts), enums, DTO types, OpenAPI generator
-packages/test-utils factories, test helpers (later)
-infra/             docker-compose, mocks (llm, google), seed, perf, sim
+apps/web            Next.js App Router, Tailwind tokens, Radix primitives, next-intl, TanStack Query
+apps/api            Express API; src/core = infrastructure, src/modules = domain
+packages/shared     Zod contracts (src/api), domain rules + state machines (src/domain), OpenAPI
+packages/test-utils isolated per-suite PostgreSQL databases
+infra/              docker-compose, mock-google (OAuth test IdP), synthetic seed
 ```
 
-## Backend: modular monolith
+## Backend modules (`apps/api/src/modules`)
 
-Modules: `auth`, `users`, `startups`, `investors`, `documents`, `matching`, `analysis`, `campaigns`, `outreach`, `meetings`, `messaging`, `notifications`, `admin`, `jobs`.
-Each module is layered: routes → controller → service → repository (see skill `express-module`).
-Cross-cutting concerns live in `core/` (config, DI, errors, auth, logging, rate limiting, crypto, storage).
-Integrations live in `integrations/` (llm, google, mcp) behind interfaces.
+| Module | Responsibility |
+|---|---|
+| `auth` | Google OAuth (adapter `IdentityProvider`), state cookie, refresh sessions with rotation/reuse detection |
+| `users` | `/me`, role choice, founder/supporter profiles, unread counts |
+| `startups` | Draft/publish/archive, milestones, funding rules, saved startups |
+| `discovery` | Search/filter/sort, public detail, relationship, **matching** (pure scoring + ranking) |
+| `connections` | Request/accept/decline/withdraw state machine; creates the conversation on accept |
+| `conversations` | Messages (idempotent), read state, derived unread counts |
+| `realtime` | `RealtimeBus` (Postgres / memory) + SSE `RealtimeHub` |
+| `deals` | Offers, counteroffers, revisions, outcome lifecycle, expiry sweep |
+| `notifications` / `email` | In-app notifications + outbox, `EmailSender` adapter, dispatcher, templates |
+| `documents` | Upload validation, private storage, per-request access checks, grants |
+| `moderation` / `admin` | Blocks, reports, report review, suspension, overview |
+| `shared` | Policies (blocks), audit trail, cursors, serialisation |
+
+Layering: route (validation, guards, thin) → service (rules, transactions, authorisation) →
+Prisma. Repositories are not added where Prisma queries are already the clearest boundary.
+Patterns used where they earn their keep: **Adapter** (identity provider, realtime bus, email
+sender, storage), **State machine tables** (connections, offers, deals), **Strategy-like factor
+table** (matching), **Unit of Work** (transactions), **Transactional outbox** (email),
+**Dependency injection** via the composition root (`core/container.ts`).
 
 ### Key flows
-
-**Document extraction:** upload → stored on disk → `Document` row → `202` + job → the worker parses the file and runs the LLM extraction → `DocumentExtraction(pending_review)` → the founder accepts → the profile is updated → the embedding is refreshed.
-
-**Matching:** when a profile is published or the thesis changes, the worker computes embeddings → a scheduled or on-demand `MatchRun` → hard filters (SQL) → vector similarity (pgvector) → a weighted score (Strategy per criterion) → LLM rationale for the top N → `Match` rows (one per startup–investor pair, with score breakdown and status).
-
-**Double opt-in:** `POST /matches/{id}/interest` → notify the counterpart → `POST /matches/{id}/accept` → status `connected` → unlock policy applies.
-
-**Approved outreach (Command pattern):** the AI creates an `EmailDraft` → the user edits it → `POST /outreach/drafts/{id}/approve` creates an `ApprovalRecord(payloadHash)` → the `SendEmailCommand` is queued → the worker verifies the hash and sends through Gmail → the thread is tracked.
-
-**Meetings:** free/busy → `MeetingProposal` draft → approve → Calendar `events.insert` → notifications.
+- **Sign-in:** `/auth/google/start` (state + PKCE in a signed cookie) → Google →
+  `/auth/google/callback` (code exchange, userinfo, upsert) → refresh cookie → web
+  `/auth/complete` → `POST /auth/refresh` → in-memory access token.
+- **Accept connection:** lock-free conditional update `pending → accepted` + conversation insert
+  in one transaction; partial unique indexes prevent duplicates.
+- **Message:** persist (idempotent on `clientMessageId`) → notification (first unread only) →
+  commit → `pg_notify` → every instance's hub → recipient SSE streams.
+- **Offer response:** `SELECT … FOR UPDATE` on the deal → state-machine check → conditional
+  updates + `version` bump → new immutable revision if countering → events, audit,
+  notifications → commit → publish.
+- **Email:** outbox row in the domain transaction → dispatcher leases with `SKIP LOCKED` →
+  SMTP → `sent`/retry/`failed`.
 
 ### Security model
-- JWT access token (15 min) in memory, plus a rotating refresh token in an httpOnly Secure SameSite=Lax cookie
-- RBAC (founder / investor / admin) plus ownership and membership guards, and a visibility policy service for startup data
-- Secrets are encrypted with AES-256-GCM using a key from env (`ENCRYPTION_KEY`, versioned)
-- Helmet, CORS allowlist, rate limits, upload MIME sniffing and size limits, and an antivirus hook (later)
+- Access JWT (HS256, 15 min, in memory) + refresh token (opaque, SHA-256 at rest, rotating,
+  reuse detection, httpOnly, SameSite=Lax, path-scoped). Role/status re-read per request.
+- Server-side authorisation in every service; IDOR policy returns 404 for invisible resources.
+- Strict Zod schemas (no mass assignment), CHECK/UNIQUE constraints, transactions, row locks.
+- Helmet, CORS allowlist, CSRF defence on cookie endpoints, rate-limit presets, upload
+  sniffing, attachment downloads with sandbox CSP, audit trail, no PII/message text in logs.
 
-## Frontend
-- Route groups `(marketing)`, `(auth)`, `(app)` under `[locale]`
-- Data through TanStack Query plus the typed client. Forms use RHF and the shared Zod schemas.
-- Theming with next-themes (dark default) and CSS-variable tokens
+## Frontend (`apps/web`)
+- Route groups under `[locale]`: `(marketing)` public pages and discovery, `(auth)` sign-in and
+  onboarding, `(app)` the authenticated shell (role-aware navigation), `admin`.
+- Public pages render on the server from public endpoints; private pages are client components
+  using TanStack Query with the in-memory access token. The API remains the only authority.
+- Real time: one `fetch`-based SSE stream per tab; events invalidate queries and update unread
+  badges; reconnect with backoff.
+- All copy in `messages/en-GB.json`; amounts via `formatMoney`; dates via `Intl` in the user's
+  timezone.
 
 ## Environments
 | Env | Purpose |
 |---|---|
-| local | Docker Compose infra + `pnpm dev` |
-| sandbox | Full stack in Compose with mock LLM and Google, no egress; used for E2E and simulations |
-| CI | GitHub Actions: lint, typecheck, unit, integration (service containers), E2E (sandbox) |
-| production | TBD (an ADR is needed before launch) |
+| local | `pnpm dev` + Postgres (+ Mailpit, mock-google) |
+| CI | lint, typecheck, unit + integration (service Postgres), build, audit |
+| production | See `OPERATIONS.md` (managed Postgres + a container host that supports long-lived HTTP) |
