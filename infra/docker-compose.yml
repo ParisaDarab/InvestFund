@@ -138,7 +138,8 @@ services:
   # ── Sandbox application containers (profile `sandbox`) ───────────────────
   # `api` and `worker` are attached ONLY to the internal `sandbox` network: no internet egress,
   # no published ports. They reach postgres, redis, mailpit and the mocks by service name.
-  # Dockerfiles: apps/api/Dockerfile (P0-API-01) and apps/web/Dockerfile (P0-WEB-01).
+  # Dockerfiles: apps/api/Dockerfile (P0-API-01). apps/web/Dockerfile and the worker entry point
+  # (P0-API-03) arrive in R2; until then this profile cannot start.
 
   api:
     profiles: [sandbox]

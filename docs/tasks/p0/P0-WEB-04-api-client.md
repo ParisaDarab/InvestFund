@@ -1,5 +1,5 @@
 # P0-WEB-04: Typed API client foundation and MSW setup
-Owner: frontend        Estimate: S        Status: in-review (R0 S0.5)
+Owner: frontend        Estimate: S        Status: committed d0c386a (R0 S0.5)
 Requirements: NFR-MAINT-01, NFR-SEC-01
 Depends on: P0-WEB-01, P0-SHARED-01, P0-API-01
 

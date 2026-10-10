@@ -2,7 +2,7 @@
 
 AI-powered platform that matches UK startups seeking investment with investors seeking opportunities. It provides two-sided AI matching, startup and pitch deck analysis, and approval-controlled outreach and meeting scheduling through Gmail and Google Calendar.
 
-> Status: project setup. Application code has not been written yet.
+> Status: release R0 (foundations) complete: monorepo, shared contracts, Express API skeleton with core security, Prisma/PostgreSQL, Next.js shell with design system and typed API client, CI. Product features start in R1 (see `docs/PHASE_PLAN.md`).
 
 ## Documentation
 
@@ -75,7 +75,7 @@ pnpm check:compose       # static check: ports bound to 127.0.0.1, pinned image 
 Profiles:
 
 - The mock LLM and mock Google servers are part of the default set (no profile) and are built locally on the first `up`. See `infra/mocks/llm/README.md` and `infra/mocks/google/README.md`.
-- `sandbox` adds the `api`, `worker` and `web` containers. `api` and `worker` run on the internal `investfund-sandbox` network with **no internet egress** and talk only to postgres, redis, mailpit and the mocks. `web` is published on http://localhost:3000. Start it with `docker compose -f infra/docker-compose.yml --profile sandbox up -d --build` and check it with `node infra/scripts/compose-health.mjs --profile sandbox`.
+- `sandbox` adds the `api`, `worker` and `web` containers. **Not runnable until R2:** `apps/web/Dockerfile` does not exist yet and the `worker` entry point (`dist/worker.js`, P0-API-03) is deferred to R2. `api` and `worker` run on the internal `investfund-sandbox` network with **no internet egress** and talk only to postgres, redis, mailpit and the mocks. `web` is published on http://localhost:3000. Start it with `docker compose -f infra/docker-compose.yml --profile sandbox up -d --build` and check it with `node infra/scripts/compose-health.mjs --profile sandbox`.
 
 Data lives in the named volumes `postgres-data`, `redis-data`, `mailpit-data` and `api-storage`, so it survives `down` and restarts. `docker compose ... down -v` **deletes all data** and needs explicit approval (see `CLAUDE.md` §5). The Postgres init script `infra/postgres/init/01-extensions.sql` only runs when the data volume is first created.
 

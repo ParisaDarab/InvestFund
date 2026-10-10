@@ -1,5 +1,5 @@
 # P0-API-02: Core security, rate limiting, crypto, storage and auth-guard skeleton
-Owner: backend        Estimate: M        Status: in-review
+Owner: backend        Estimate: M        Status: committed (6d1c5a4)
 Requirements: NFR-SEC-01, NFR-PRIV-01
 Depends on: P0-API-01
 
