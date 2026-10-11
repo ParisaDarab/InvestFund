@@ -42,6 +42,7 @@ import { createLogger, type Logger } from './logger/logger.js';
 import { createHttpMetrics, type HttpMetrics } from './metrics/metrics.js';
 import { MemoryRateLimitStore } from './rateLimit/memory-store.js';
 import { PostgresRateLimitStore } from './rateLimit/postgres-store.js';
+import { RATE_LIMIT_POLICIES } from './rateLimit/presets.js';
 import { createRateLimiter, type RateLimiter } from './rateLimit/rate-limit.js';
 
 import type { ApiModule, AppDeps } from '../app.js';
@@ -148,7 +149,18 @@ export function createContainer(config: AppConfig, options: ContainerOptions = {
   } else {
     rateLimitStore = new MemoryRateLimitStore();
   }
-  const rateLimiter = createRateLimiter({ store: rateLimitStore, hashSubject });
+  const rateLimiter = createRateLimiter({
+    store: rateLimitStore,
+    hashSubject,
+    policies: {
+      ...RATE_LIMIT_POLICIES,
+      auth: {
+        ...RATE_LIMIT_POLICIES.auth,
+        userLimit: config.rateLimit.authPerMinute,
+        ipLimit: config.rateLimit.authPerMinute,
+      },
+    },
+  });
   closeHooks.push(() => prisma.$disconnect());
 
   // docs/API.md §5: public only when OPENAPI_PUBLIC (default on outside production), else admin.

@@ -154,6 +154,8 @@ export const EnvSchema = z
     MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(1024).default(25),
     /** Rate-limit counter store. `memory` is for tests and single-process development only. */
     RATE_LIMIT_STORE: z.enum(RATE_LIMIT_STORES).default('postgres'),
+    /** Sign-in attempts per IP per minute (`auth` preset). Raise only for automated test runs. */
+    RATE_LIMIT_AUTH_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
     /** Signs the short-lived OAuth state cookie. Required at boot. */
     JWT_REFRESH_SECRET: z.string().min(1),
     /** Refresh-session lifetime in days. */
@@ -244,7 +246,10 @@ export interface AppConfig {
     readonly ipHashSecret: string;
   };
   readonly storage: { readonly dir: string; readonly maxUploadBytes: number };
-  readonly rateLimit: { readonly store: (typeof RATE_LIMIT_STORES)[number] };
+  readonly rateLimit: {
+    readonly store: (typeof RATE_LIMIT_STORES)[number];
+    readonly authPerMinute: number;
+  };
   readonly session: { readonly stateSecret: string; readonly refreshTtlDays: number };
   /** `null` when Google sign-in is not configured. */
   readonly google: GoogleConfig | null;
@@ -350,7 +355,7 @@ export function loadConfig(source: RawEnv = process.env): AppConfig {
       ipHashSecret: env.IP_HASH_SECRET,
     },
     storage: { dir: resolve(env.STORAGE_DIR), maxUploadBytes: env.MAX_UPLOAD_MB * 1024 * 1024 },
-    rateLimit: { store: env.RATE_LIMIT_STORE },
+    rateLimit: { store: env.RATE_LIMIT_STORE, authPerMinute: env.RATE_LIMIT_AUTH_PER_MINUTE },
     session: { stateSecret: env.JWT_REFRESH_SECRET, refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS },
     google:
       env.GOOGLE_CLIENT_ID !== undefined &&

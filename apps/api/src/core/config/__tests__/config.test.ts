@@ -64,7 +64,7 @@ describe('loadConfig', () => {
         ipHashSecret: IP_SECRET,
       },
       storage: { dir: resolve('./storage'), maxUploadBytes: 25 * 1024 * 1024 },
-      rateLimit: { store: 'postgres' },
+      rateLimit: { store: 'postgres', authPerMinute: 10 },
       session: { stateSecret: 'unit-test-refresh-secret', refreshTtlDays: 30 },
       google: null,
       webOrigin: 'http://localhost:3000',

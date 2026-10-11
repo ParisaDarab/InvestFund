@@ -57,7 +57,7 @@ Suspended users get 401 on refresh and `403 account-suspended` on any request.
 
 | Preset | Limit | Applied to |
 |---|---|---|
-| `auth` | 10/min per IP | Google start/callback, refresh, logout |
+| `auth` | 10/min per IP | Google start and callback (refresh and logout use `default`) |
 | `upload` | 20/min per user | Document uploads |
 | `ai` | 10/min per user | Reserved (no AI endpoints in the MVP) |
 | `sensitive` | 10/min per user | Role choice, connection requests and responses, offers and deal actions, blocks, reports, admin decisions |
@@ -92,8 +92,8 @@ Suspended users get 401 on refresh and `403 account-suspended` on any request.
 |---|---|---|---|
 | GET | `/auth/google/start?returnTo=&loginHint=` | public · `auth` | 303 to Google. Sets the signed `if_oauth` state cookie (PKCE verifier, state, returnTo). `returnTo` must be a relative path. 503 when Google is not configured. |
 | GET | `/auth/google/callback` | public · `auth` | Verifies state, exchanges the code and upserts the user. Sets `if_refresh`. 303 to `WEB_URL/auth/complete` or `WEB_URL/login?error=cancelled\|failed\|state\|email_unverified\|account_conflict\|suspended`. |
-| POST | `/auth/refresh` | cookie · `auth` | JSON body `{}`; `Origin` must be the web origin. Rotates the token → `SessionResponse`. |
-| POST | `/auth/logout` | cookie · `auth` | Revokes the session, clears the cookie. 204. |
+| POST | `/auth/refresh` | cookie · `default` | JSON body `{}`; `Origin` must be the web origin. Rotates the token → `SessionResponse`. |
+| POST | `/auth/logout` | cookie · `default` | Revokes the session, clears the cookie. 204. |
 
 ### 6.2 Account and profiles (`api/auth.ts`, `api/profiles.ts`)
 | Method | Path | Auth | Notes |

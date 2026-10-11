@@ -42,6 +42,8 @@ export function buildAuthRoutes(ctx: ModuleContext): Router {
   const service = new AuthService(ctx.prisma);
   const web = ctx.config.webOrigin;
   const limit = ctx.rateLimiter.limit('auth');
+  // Refresh runs on every page load; tokens carry 256 bits of entropy, so the general limit fits.
+  const sessionLimit = ctx.rateLimiter.limit('default');
 
   const redirectToWeb = (res: Response, path: string, params: Record<string, string> = {}) => {
     const url = new URL(path, web);
@@ -165,7 +167,7 @@ export function buildAuthRoutes(ctx: ModuleContext): Router {
     );
   });
 
-  router.post('/refresh', limit, async (req, res) => {
+  router.post('/refresh', sessionLimit, async (req, res) => {
     assertSameOriginPost(req);
     const token = readCookie(req, REFRESH_COOKIE);
     if (token === undefined || token.length > 200) throw new UnauthenticatedError();
@@ -191,7 +193,7 @@ export function buildAuthRoutes(ctx: ModuleContext): Router {
     );
   });
 
-  router.post('/logout', limit, async (req, res) => {
+  router.post('/logout', sessionLimit, async (req, res) => {
     assertSameOriginPost(req);
     const token = readCookie(req, REFRESH_COOKIE);
     if (token !== undefined && token.length <= 200) await ctx.sessions.revoke(token);
