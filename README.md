@@ -1,13 +1,22 @@
 # InvestFund
 
-AI-powered platform that matches UK startups seeking investment with investors seeking opportunities. It provides two-sided AI matching, startup and pitch deck analysis, and approval-controlled outreach and meeting scheduling through Gmail and Google Calendar.
+A two-sided marketplace where **technology founders** raise **grants and donations** from
+individual **supporters**. Supporters discover startups and get explained recommendations. They
+connect with founders, chat privately in real time, negotiate structured offers with
+counteroffers, and record the reported funding outcome. Money never passes through the
+platform.
 
-> Status: release R0 (foundations) complete: monorepo, shared contracts, Express API skeleton with core security, Prisma/PostgreSQL, Next.js shell with design system and typed API client, CI. Product features start in R1 (see `docs/PHASE_PLAN.md`).
+> Status: MVP implemented: Google sign-in, onboarding, startups and milestones, discovery and
+> recommendations, connections, real-time chat, offers and outcomes, notifications with an email
+> outbox, private documents, blocking, reporting and admin review. Verification results and known
+> limitations: `docs/OPERATIONS.md` §11.
 
 ## Documentation
 
 - [Master prompt / contributor rules](CLAUDE.md)
 - [Product requirements](docs/PRD.md)
+- [Domain rules](docs/DOMAIN_RULES.md) · [Matching](docs/MATCHING.md) · [API](docs/API.md) · [Data model](docs/DATABASE.md)
+- [Operations and deployment](docs/OPERATIONS.md) · [Decisions](docs/adr/)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Design system](docs/DESIGN_SYSTEM.md)
 - [Benchmark analysis](docs/BENCHMARK_ANALYSIS.md)
@@ -19,14 +28,14 @@ AI-powered platform that matches UK startups seeking investment with investors s
 | Agent      | Prompt                         | Skills                                                                                             |
 | ---------- | ------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Supervisor | `.claude/agents/supervisor.md` | requirements-to-tasks, phase-planning, database-design, api-contract-design, code-review-standards |
-| Backend    | `.claude/agents/backend.md`    | express-module, prisma-data-layer, llm-integration, google-integrations                            |
+| Backend    | `.claude/agents/backend.md`    | express-module, prisma-data-layer, google-integrations                                             |
 | Frontend   | `.claude/agents/frontend.md`   | ui-design-system, nextjs-feature, api-client-integration                                           |
 | Tester     | `.claude/agents/tester.md`     | test-automation, e2e-testing, sandbox-simulation, nonfunctional-testing                            |
 | All        | n/a                            | human-approval-gate                                                                                |
 
 ## Stack
 
-Next.js · Express · TypeScript · PostgreSQL + Prisma + pgvector · Redis/BullMQ · Docker Compose · GitHub Actions
+Next.js · Express · TypeScript · PostgreSQL + Prisma · SSE + LISTEN/NOTIFY · SMTP outbox · Playwright · Docker Compose · GitHub Actions
 
 ## Getting started
 
@@ -51,6 +60,26 @@ The repository stores every text file with LF line endings (`.gitattributes`, `.
 - Prefer **WSL2** (Ubuntu) with the repository cloned inside the Linux filesystem (`~/src/...`, not `/mnt/c/...`) for the best file-watching and Docker performance. Docker Desktop must use the WSL2 backend.
 - If you work natively on Windows, use Git Bash or PowerShell and set `git config core.autocrlf false`; `.gitattributes` handles normalisation.
 - If a file was committed with CRLF, run `git add --renormalize .` and then `pnpm check:eol`.
+
+## Run the whole app locally
+
+```bash
+cp .env.example .env                     # dev defaults; set GOOGLE_* to the mock below
+docker compose -f infra/docker-compose.yml up -d postgres mailpit   # or any local PostgreSQL 16
+pnpm --filter @investfund/api exec prisma migrate deploy
+pnpm --filter @investfund/mock-google dev   # mock Google OAuth on :4020 (no Google account needed)
+# in .env: GOOGLE_CLIENT_ID=dev, GOOGLE_CLIENT_SECRET=dev,
+#          GOOGLE_*_BASE_URL=http://localhost:4020, NEXT_PUBLIC_AUTH_DEV_HINTS=true
+MOCK_GOOGLE_URL=http://localhost:4020 pnpm seed   # synthetic demo users and startups
+pnpm dev                                    # API :4000, web :3000
+```
+
+Sign in at http://localhost:3000/en-GB/login. With the mock, type a demo email such as
+`fay@demo.investfund.test` (a founder) or `sam@demo.investfund.test` (a supporter) in the
+development field. Grant admin with `pnpm --filter @investfund/api admin:grant -- --email <email>`.
+
+Tests: `pnpm test` (unit and integration, against PostgreSQL via `TEST_DATABASE_URL`) and
+`pnpm --filter @investfund/web test:e2e` (Playwright; reuses or starts the three servers).
 
 ## Local infrastructure (Docker Compose)
 

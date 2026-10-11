@@ -158,6 +158,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-investfund}:${POSTGRES_PASSWORD:-investfund}@postgres:5432/${POSTGRES_DB:-investfund}
       REDIS_URL: redis://redis:6379
       STORAGE_DIR: /var/lib/investfund/storage
+      EMAIL_DELIVERY: smtp
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_FROM: InvestFund <no-reply@investfund.local>
@@ -167,7 +168,7 @@ services:
       LLM_EMBEDDING_MODEL: mock-embedding
       GOOGLE_CLIENT_ID: sandbox-client-id
       GOOGLE_CLIENT_SECRET: sandbox-client-secret
-      GOOGLE_REDIRECT_URI: http://localhost:3000/api/v1/auth/google/callback
+      GOOGLE_REDIRECT_URI: http://localhost:4000/api/v1/auth/google/callback
       # Browser-facing: the OAuth consent redirect is followed by the host browser (D-MOCK-01).
       GOOGLE_AUTH_BASE_URL: http://localhost:4020
       GOOGLE_OAUTH2_BASE_URL: http://mock-google:4020
