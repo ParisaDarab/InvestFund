@@ -18,7 +18,10 @@ import { PENDING_SUB_PREFIX } from '../modules/auth/auth.service.js';
 import { recordAudit } from '../modules/shared/audit.js';
 
 async function main(): Promise<void> {
+  // `pnpm run x -- --email …` forwards the literal `--`; drop it so the flags parse.
+  const argv = process.argv.slice(2).filter((arg, index) => !(index === 0 && arg === '--'));
   const { values } = parseArgs({
+    args: argv,
     options: { email: { type: 'string' }, revoke: { type: 'boolean', default: false } },
     allowPositionals: true,
   });
