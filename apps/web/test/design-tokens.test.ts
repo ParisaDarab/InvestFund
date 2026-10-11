@@ -51,8 +51,8 @@ describe('contrastRatio', () => {
 describe('design tokens (src/styles/globals.css)', () => {
   it('reads the full colour table from docs/DESIGN_SYSTEM.md', () => {
     expect(Object.keys(spec.dark)).toHaveLength(13);
-    expect(spec.dark.background).toBe('#0a0a0a');
-    expect(spec.light.primary).toBe('#047857');
+    expect(spec.dark.background).toBe('#0b1220');
+    expect(spec.light.primary).toBe('#0f766e');
   });
 
   it.each(themes)('defines exactly the DESIGN_SYSTEM.md tokens in the %s theme', (theme) => {

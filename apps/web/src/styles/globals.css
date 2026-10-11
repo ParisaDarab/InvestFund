@@ -5,7 +5,7 @@
 
 /*
  * Design tokens: the single source of truth is docs/DESIGN_SYSTEM.md (colour tokens table).
- * Light values live on :root and dark values on .dark (the default theme, set by next-themes).
+ * Light values live on :root (the default theme) and dark values on .dark (set by next-themes).
  * test/design-tokens.test.ts parses these two blocks, checks them against the design system and
  * verifies the WCAG contrast pairs, so keep them as plain `--name: value;` declarations.
  * Components use the semantic Tailwind classes below (bg-background, text-muted-foreground, ...),
@@ -13,34 +13,34 @@
  */
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --card: #fafafa;
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-  --border: #e4e4e7;
-  --primary: #047857;
+  --background: #fbfaf7;
+  --foreground: #0f1b2d;
+  --card: #ffffff;
+  --muted: #f2f0ea;
+  --muted-foreground: #4a5568;
+  --border: #e3dfd5;
+  --primary: #0f766e;
   --primary-foreground: #ffffff;
-  --ring: #047857;
-  --success: #15803d;
-  --warning: #b45309;
+  --ring: #0f766e;
+  --success: #166534;
+  --warning: #92400e;
   --destructive: #b91c1c;
-  --grid-line: rgba(0, 0, 0, 0.05);
+  --grid-line: rgba(15, 27, 45, 0.05);
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0a0a0a;
-  --foreground: #fafafa;
-  --card: #111111;
-  --muted: #1a1a1a;
-  --muted-foreground: #a1a1aa;
-  --border: #262626;
-  --primary: #34d399;
-  --primary-foreground: #052e1b;
-  --ring: #34d399;
-  --success: #22c55e;
-  --warning: #f59e0b;
+  --background: #0b1220;
+  --foreground: #f3f1ec;
+  --card: #111a2b;
+  --muted: #172235;
+  --muted-foreground: #a3adbd;
+  --border: #24324a;
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
+  --ring: #2dd4bf;
+  --success: #4ade80;
+  --warning: #fbbf24;
   --destructive: #f87171;
   --grid-line: rgba(255, 255, 255, 0.05);
 }
@@ -76,8 +76,10 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Depth: glow under the hero product preview. */
-  --shadow-glow: 0 0 120px -20px color-mix(in srgb, var(--primary) 35%, transparent);
+  /* Depth: restrained card and overlay shadows; glow under the hero preview. */
+  --shadow-card: 0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent);
+  --shadow-raised: 0 8px 24px -12px color-mix(in srgb, var(--foreground) 18%, transparent);
+  --shadow-glow: 0 0 120px -20px color-mix(in srgb, var(--primary) 25%, transparent);
 
   /* Motion: 150-250ms ease-out. Disabled entirely under prefers-reduced-motion (see below). */
   --animate-fade-in: fade-in 200ms ease-out;

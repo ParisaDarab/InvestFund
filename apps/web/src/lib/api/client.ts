@@ -203,7 +203,9 @@ export async function apiFetch(
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json, application/problem+json');
   if (body !== undefined) headers.set('Content-Type', 'application/json');
-  const token = await currentAccessToken();
+  // Cookie-authenticated auth endpoints never carry the access token: asking the provider for
+  // one there would recurse into the refresh call itself.
+  const token = isAuthPath(endpoint, prefix) ? null : await currentAccessToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   let response: Response;

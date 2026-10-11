@@ -16,5 +16,7 @@ export default getRequestConfig(async ({ locale: explicitLocale }) => {
   const requested = explicitLocale ?? (await rootLocale());
   const locale = hasLocale(routing.locales, requested) ? requested : routing.defaultLocale;
   const messages = (await messageLoaders[locale]()).default;
-  return { locale, messages };
+  // Dates are formatted with Intl in the browser's zone; next-intl's own formatters use UTC so
+  // server and client markup match.
+  return { locale, messages, timeZone: 'UTC' };
 });

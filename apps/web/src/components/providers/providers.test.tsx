@@ -34,12 +34,12 @@ describe('Providers', () => {
   it('renders children with query, theme and i18n context available', () => {
     const html = renderWithProviders();
     expect(html).toContain('data-testid="probe"');
-    expect(html).toContain('InvestFund');
+    expect(html).toContain('Fund the technology founders');
     expect(html).toContain('retry=<!-- -->1');
     expect(html).toMatch(/themes=(<!-- -->)?light,dark,system/);
   });
 
-  it('injects the blocking next-themes script with the dark default and class attribute', () => {
+  it('injects the blocking next-themes script with the class attribute and both themes', () => {
     const html = renderWithProviders();
     expect(html).toContain('<script');
     expect(html).toContain('"class"');

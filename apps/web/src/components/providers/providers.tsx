@@ -8,6 +8,8 @@ import { ApiMocking } from './api-mocking';
 
 import type { ReactNode } from 'react';
 
+import { Toaster } from '@/components/feedback/toaster';
+import { SessionProvider } from '@/lib/auth/session';
 import { createQueryClient } from '@/lib/query-client';
 
 export interface ProvidersProps {
@@ -15,8 +17,9 @@ export interface ProvidersProps {
 }
 
 /**
- * Client-side providers shared by every route: theme (dark by default, class on <html>, system
- * option available), TanStack Query and the dev-only MSW opt-in (`ApiMocking`). next-intl's client provider is rendered by the locale
+ * Client-side providers shared by every route: theme (light by default, class on <html>, system
+ * option available), TanStack Query, the dev-only MSW opt-in (`ApiMocking`), the browser session
+ * (in-memory access token) and toasts. next-intl's client provider is rendered by the locale
  * layout because it needs the server-resolved locale and messages.
  */
 export function Providers({ children }: ProvidersProps) {
@@ -24,9 +27,13 @@ export function Providers({ children }: ProvidersProps) {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
-        <ApiMocking>{children}</ApiMocking>
+        <ApiMocking>
+          <SessionProvider>
+            <Toaster>{children}</Toaster>
+          </SessionProvider>
+        </ApiMocking>
       </QueryClientProvider>
     </ThemeProvider>
   );

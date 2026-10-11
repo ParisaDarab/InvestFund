@@ -1,30 +1,31 @@
 # InvestFund design system
 
-Status: **Proposed. The brand colour needs human approval.**
+Status: **Current (v2).** Palette from the master brief: warm white, deep navy text, restrained teal accent.
 Style is derived from the benchmark (`BENCHMARK_ANALYSIS.md`) with InvestFund's own identity.
 
 ## Brand
 - Name: **InvestFund** (working name)
 - Logo: a wordmark in Inter Bold with an accent dot, the same idea as the benchmark but in our colour. Replace it when a real logo exists.
-- Accent: **Emerald (growth / capital)**, a deliberate contrast to the benchmark's peach.
+- Accent: **Teal** (trust, growth), used sparingly for primary actions, links, focus and progress.
+- Default theme: **light** (warm white). A dark theme is available from the theme toggle.
 
 ## Colour tokens
 
-| Token | Dark (default) | Light |
+| Token | Dark | Light (default) |
 |---|---|---|
-| `--background` | `#0A0A0A` | `#FFFFFF` |
-| `--foreground` | `#FAFAFA` | `#0A0A0A` |
-| `--card` | `#111111` | `#FAFAFA` |
-| `--muted` | `#1A1A1A` | `#F4F4F5` |
-| `--muted-foreground` | `#A1A1AA` | `#52525B` |
-| `--border` | `#262626` | `#E4E4E7` |
-| `--primary` (accent) | `#34D399` | `#047857` |
-| `--primary-foreground` | `#052E1B` | `#FFFFFF` |
-| `--ring` | `#34D399` | `#047857` |
-| `--success` | `#22C55E` | `#15803D` |
-| `--warning` | `#F59E0B` | `#B45309` |
-| `--destructive` | `#F87171` | `#B91C1C` |
-| `--grid-line` | `rgba(255,255,255,0.05)` | `rgba(0,0,0,0.05)` |
+| `--background` | `#0b1220` | `#fbfaf7` |
+| `--foreground` | `#f3f1ec` | `#0f1b2d` |
+| `--card` | `#111a2b` | `#ffffff` |
+| `--muted` | `#172235` | `#f2f0ea` |
+| `--muted-foreground` | `#a3adbd` | `#4a5568` |
+| `--border` | `#24324a` | `#e3dfd5` |
+| `--primary` (accent) | `#2dd4bf` | `#0f766e` |
+| `--primary-foreground` | `#042f2e` | `#ffffff` |
+| `--ring` | `#2dd4bf` | `#0f766e` |
+| `--success` | `#4ade80` | `#166534` |
+| `--warning` | `#fbbf24` | `#92400e` |
+| `--destructive` | `#f87171` | `#b91c1c` |
+| `--grid-line` | `rgba(255,255,255,0.05)` | `rgba(15,27,45,0.05)` |
 
 All text and background pairs meet a contrast ratio of at least 4.5:1. Verify any change with an automated contrast check.
 
@@ -47,12 +48,26 @@ Inter (`next/font/google`, variable).
 - Glow for the hero preview: `box-shadow: 0 0 120px -20px color-mix(in srgb, var(--primary) 35%, transparent)`
 - Motion: 150–250ms ease-out; disabled under `prefers-reduced-motion`
 
-## Components (shadcn/ui, themed)
-Button (primary / secondary / ghost / outline / destructive), Card, Badge/StatusPill, ScoreRing (0–100), MatchCard (score, breakdown bars, rationale disclosure, actions), Stepper (wizard), FileDropzone, DraftReviewPanel (email and meeting approval), PipelineBoard (campaign kanban), DataTable, EmptyState, Toast, Dialog, Sheet, CommandMenu.
+## Components
+Primitives (Radix, themed): Button, Card, Badge, Dialog, Sheet, Tabs, Select, Checkbox, Toast,
+Tooltip, Input, Textarea, Label, Skeleton.
+
+Product components: AppShell (sidebar, mobile sheet, top bar), StartupCard, FundingProgress,
+MilestoneList, FilterBar, Pagination ("Load more"), ProfileSummary, ConnectionStatus,
+ConversationList, ChatWindow, MessageBubble, OfferCard, OfferHistory, DealTimeline,
+NotificationList, ConfirmDialog, EmptyState, ErrorState, LoadingSkeletons, MoneyInput,
+MatchScore (score and factor bars).
 
 ## Layouts
-- **Marketing:** sticky blurred nav → grid hero → logo strip → alternating feature blocks → steps → testimonials → pricing → FAQ → CTA → footer.
-- **App:** sidebar (role-aware: Founder: Dashboard, Profile, Analysis, Matches, Campaigns, Meetings, Messages; Investor: Dashboard, Thesis, Deal flow, Connections, Meetings, Messages; Admin: Users, Verification, LLM, Matching, Analytics, Audit) plus a top bar (campaign switcher, notifications, theme toggle, avatar).
+- **Marketing:** a sticky nav, a hero with a product preview, how it works (three steps), the
+  for-founders and for-supporters sections, a trust and safety section, a CTA and the footer.
+  No fabricated statistics or testimonials.
+- **App:** a role-aware sidebar (Founder: Dashboard, My startups, Connections, Messages, Deals,
+  Notifications, Settings. Supporter: Dashboard, Discover, Recommended, Saved, Connections,
+  Messages, Deals, Notifications, Settings. Admin: Overview, Reports), plus a top bar
+  (notifications with an unread badge, theme toggle and profile menu). On mobile the sidebar
+  becomes a sheet.
 
 ## Voice
-Plain, confident, founder-friendly. Avoid hype. Always make clear when content is AI-generated and that nothing is sent without approval.
+Plain, warm and precise. Never imply that money moved through the platform or that anything is
+verified. Say "reported" and "confirmed by the founder", not "paid".
