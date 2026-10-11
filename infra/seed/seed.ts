@@ -242,15 +242,25 @@ const STARTUPS: DemoStartup[] = [
 
 const email = (key: string) => `${key}@${DOMAIN}`;
 
+/** Numeric, Google-style account ids (the mock provider, like Google, accepts digits only). */
+const demoSub = (u: DemoUser): string =>
+  `90000000000000000${String(USERS.indexOf(u) + 1).padStart(4, '0')}`;
+
 async function upsertUser(prisma: PrismaClient, u: DemoUser): Promise<string> {
   const existing = await prisma.user.findUnique({ where: { email: email(u.key) } });
-  if (existing !== null) return existing.id;
+  if (existing !== null) {
+    // Keep demo accounts signable through the mock provider (repairs older seeds).
+    if (existing.googleSub !== demoSub(u)) {
+      await prisma.user.update({ where: { id: existing.id }, data: { googleSub: demoSub(u) } });
+    }
+    return existing.id;
+  }
   const id = newId();
   await prisma.user.create({
     data: {
       id,
       email: email(u.key),
-      googleSub: `demo-${u.key}`,
+      googleSub: demoSub(u),
       name: u.name,
       role: u.role,
       onboardedAt: new Date(),
@@ -441,9 +451,7 @@ async function seedJourney(prisma: PrismaClient, ids: Record<string, string>, st
 }
 
 async function registerWithMockGoogle(url: string): Promise<void> {
-  const users = [
-    ...USERS.map((u) => ({ email: email(u.key), name: u.name, sub: `demo-${u.key}` })),
-  ];
+  const users = [...USERS.map((u) => ({ email: email(u.key), name: u.name, sub: demoSub(u) }))];
   const response = await fetch(`${url.replace(/\/+$/, '')}/__seed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
