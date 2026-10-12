@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from 'next/constants';
 
+import { buildApiProxyRewrites } from './src/lib/api-proxy';
 import { parsePublicEnv } from './src/lib/env';
 import { buildSecurityHeaders } from './src/lib/security-headers';
 
@@ -20,6 +21,8 @@ export default function nextConfig(phase: string): NextConfig {
   // Fail fast (naming the variable) when `next build` or `next dev` runs without the public env.
   // Other phases (`next start`, `next typegen`) do not need it.
   const env = isDev || phase === PHASE_PRODUCTION_BUILD ? parsePublicEnv(process.env) : undefined;
+  // Same-origin API proxy for split hosting without a shared domain (see src/lib/api-proxy.ts).
+  const apiProxyRewrites = buildApiProxyRewrites(process.env.API_PROXY_TARGET);
 
   return {
     reactStrictMode: true,
@@ -31,6 +34,9 @@ export default function nextConfig(phase: string): NextConfig {
       // Only used with `next build --webpack`; Turbopack is the default bundler.
       config.resolve.alias['next-intl/config'] = path.resolve(config.context, I18N_REQUEST_CONFIG);
       return config;
+    },
+    rewrites() {
+      return Promise.resolve(apiProxyRewrites);
     },
     headers() {
       return Promise.resolve([

@@ -81,6 +81,11 @@ development field. Grant admin with `pnpm --filter @investfund/api admin:grant -
 Tests: `pnpm test` (unit and integration, against PostgreSQL via `TEST_DATABASE_URL`) and
 `pnpm --filter @investfund/web test:e2e` (Playwright; reuses or starts the three servers).
 
+## Deploy for free
+
+Vercel (web) + Render (API) + Neon (PostgreSQL): step by step in
+[docs/DEPLOY_FREE.md](docs/DEPLOY_FREE.md).
+
 ## Local infrastructure (Docker Compose)
 
 Prerequisite: Docker Desktop (WSL2 backend on Windows) or Docker Engine with Compose v2.
